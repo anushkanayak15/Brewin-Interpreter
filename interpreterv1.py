@@ -1,3 +1,8 @@
+# The Interpreter class initializes variables and prepares to run the program
+# The run method serves as the starting point for executing a Brewin program, transforming it into an ast and executing the main function
+# The interpreter verifies the existence of the main function and executes its statements in order
+# The code distinguishes among variable definitions, assignments, and function calls, processing each type accordingly
+# The evaluation mechanism addresses variables, constants, binary operations, and function calls, while ensuring accurate error handling
 
 from intbase import InterpreterBase, ErrorType
 from brewparse import parse_program
