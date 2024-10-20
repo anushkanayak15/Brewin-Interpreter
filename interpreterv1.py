@@ -1,4 +1,4 @@
-#Anushka Nayak (605977416)
+
 from intbase import InterpreterBase, ErrorType
 from brewparse import parse_program
 
