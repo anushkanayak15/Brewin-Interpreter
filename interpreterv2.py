@@ -135,20 +135,19 @@ class Interpreter(InterpreterBase):
 
         #Evaluate constant nodes for integers
         elif expr_node.elem_type == "int":
-
             #print("evaluating integer constant:", expr_node.dict.get("val"))
-
             return expr_node.dict.get("val")  # Access the integer value
 
         #Evaluate constant nodes for strings
         elif expr_node.elem_type == "string":
-
             # print("evaluating string constant:", expr_node.dict.get("val"))
-
             return expr_node.dict.get("val")  # Access the string value
         
         elif expr_node.elem_type == "bool":  # Evaluate constant nodes for booleans
             return expr_node.dict.get("val")  # Access the boolean value
+        
+        elif expr_node.elem_type == "nil":  # Handling for nil
+            return None  # Represent nil as None (or a similar representation)
 
         #Evaluate binary operations (addition and subtraction)
         elif expr_node.elem_type in ['+', '-', '*', '/']:
@@ -156,6 +155,9 @@ class Interpreter(InterpreterBase):
             left_op = self.evaluate_expression(expr_node.dict.get("op1"))   # Get the first operand
             
             right_op = self.evaluate_expression(expr_node.dict.get("op2")) # Get the second operand
+            # Handling nil values
+        if left_op is None or right_op is None:
+            super().error(ErrorType.TYPE_ERROR, "Cannot perform arithmetic operation with nil")
 
             # Need to check incompatible types before performing the operation
             if isinstance(left_op, str) or isinstance(right_op, str):
@@ -172,10 +174,17 @@ class Interpreter(InterpreterBase):
                 return left_op * right_op
             elif expr_node.elem_type == '/':
                 return left_op // right_op  # Integer division like python
+        
         # Handling the comparisons check this implementation: 
         elif expr_node.elem_type in ['==', '!=', '<', '<=', '>', '>=']:  # Evaluate binary comparison operations
             left_op = self.evaluate_expression(expr_node.dict.get("op1"))
             right_op = self.evaluate_expression(expr_node.dict.get("op2"))
+
+            # Handling nil values in comparisons
+            if left_op is None and right_op is None:
+                return expr_node.elem_type == '=='  # Both are nil, equal
+            elif left_op is None or right_op is None:
+                return expr_node.elem_type == '!='  # One is nil, the other is not
 
             # Type checking for comparisons
             if type(left_op) != type(right_op):
@@ -200,6 +209,10 @@ class Interpreter(InterpreterBase):
         elif expr_node.elem_type in ['&&', '||']:  # Evaluate logical binary operations
             left_op = self.evaluate_expression(expr_node.dict.get("op1"))
             right_op = self.evaluate_expression(expr_node.dict.get("op2"))
+            
+            # Handling nil values in logical operations
+            if left_op is None or right_op is None:
+                super().error(ErrorType.TYPE_ERROR, "Cannot perform logical operation with nil")
 
             if not isinstance(left_op, bool) or not isinstance(right_op, bool):
                 super().error(ErrorType.TYPE_ERROR, "Incompatible types for logical operation")
@@ -208,6 +221,8 @@ class Interpreter(InterpreterBase):
 
         elif expr_node.elem_type == '!':  # Evaluate unary logical operation
             op = self.evaluate_expression(expr_node.dict.get("op1"))
+            if op is None:
+                super().error(ErrorType.TYPE_ERROR, "Invalid operation on nil value")
 
             if not isinstance(op, bool):
                 super().error(ErrorType.TYPE_ERROR, "Invalid operation on non-boolean type")
@@ -249,8 +264,7 @@ class Interpreter(InterpreterBase):
 
         # Throw error for unsupported expression type
         super().error(ErrorType.TYPE_ERROR, f"Unsupported expression type: {expr_node.elem_type}")
-    
-    
+        
     def do_func_call(self, statement_node):
         # Get the function name
         func_name = statement_node.dict.get("name")
