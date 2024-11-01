@@ -1,5 +1,5 @@
 # Anushka Nayak (605977416)
-#PROJECT 2
+
 # The Interpreter class initializes variables and prepares to run the program
 # The run method serves as the starting point for executing a Brewin program, transforming it into an ast and executing the main function
 # The interpreter verifies the existence of the main function and executes its statements in order
@@ -213,7 +213,7 @@ class Interpreter(InterpreterBase):
                 super().error(ErrorType.TYPE_ERROR, "Invalid operation on non-boolean type")
 
             return not op
-            
+
         # Evaluate function call expressions
         elif expr_node.elem_type == "fcall":
 
@@ -242,6 +242,10 @@ class Interpreter(InterpreterBase):
                 user_input = super().get_input()
                 # print("result of operation:", result)
                 return int(user_input)  # Return the integer value of the input
+            
+            # Handle the new inputs() function for string input
+            elif function_name == "inputs":
+                return self.handle_inputs(args)
 
         # Throw error for unsupported expression type
         super().error(ErrorType.TYPE_ERROR, f"Unsupported expression type: {expr_node.elem_type}")
@@ -328,6 +332,18 @@ class Interpreter(InterpreterBase):
         
         else:
             return None  # Default return value is nil
+    
+    def handle_inputs(self, args):
+        # Handles string inputs from user
+        if len(args) > 1:  # Check for more than one argument
+            super().error(ErrorType.NAME_ERROR, "No inputs() function found that takes > 1 parameter")
+
+        user_prompt = ''
+        if args:
+            user_prompt = self.evaluate_expression(args[0])
+            super().output(user_prompt)  # Output the user prompt to the screen
+
+        return super().get_input()  # Get string input and return it
 
       
 def main():
