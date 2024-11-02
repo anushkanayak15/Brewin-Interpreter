@@ -55,7 +55,6 @@ class Interpreter(InterpreterBase): # change here for scoping
 
     def run_func(self, func_node):  # Updated for handling nested functions
         self.scopes.append({})  # Push a new dictionary for the function scope
-        
         # Initialize function parameters in the new scope
         param_list = func_node.dict.get("params", [])  # Get the list of parameters if they exist
         for param in param_list:
@@ -91,15 +90,13 @@ class Interpreter(InterpreterBase): # change here for scoping
            super().error(ErrorType.NAME_ERROR, f"Invalid statement")
 
 
-    def do_definition(self, statement_node): # made change here for scoping
-        var_name = statement_node.dict.get("name") # Get variable name from the dictionary
+    def do_definition(self, statement_node):
+        var_name = statement_node.dict.get("name")
         # Check if the variable has already been defined in the current scope
         if var_name in self.scopes[-1]:  # Check in the top dictionary of the current stack
             super().error(ErrorType.NAME_ERROR, f"Variable {var_name} defined more than once in the same scope")
         else:
             self.scopes[-1][var_name] = None  # Initialize the variable in the current inner stack
-    
-        
 
     def do_assignment(self, statement_node):
         var_name = statement_node.dict.get("name")  # Get variable name from the dictionary  
@@ -112,119 +109,82 @@ class Interpreter(InterpreterBase): # change here for scoping
         super().error(ErrorType.NAME_ERROR, f"Variable {var_name} has not been defined")
 
     def evaluate_expression(self, expr_node):
-     # Evaluate different tpes of expression nodes
-        if expr_node.elem_type == "var": # Evaluate variable node
+        if expr_node.elem_type == "var":  # Evaluate variable node
             var_name = expr_node.dict.get("name")  # Access the variable name
-            
             # Find the variable in the current stack or any outer stacks
             for scope in reversed(self.scopes):
                 if var_name in scope:  # Check in the top dictionary of the current stack
                     return scope[var_name]
             super().error(ErrorType.NAME_ERROR, f"Variable {var_name} has not been defined")
-
-        #Evaluate constant nodes for integers
         elif expr_node.elem_type == "int":
-            #print("evaluating integer constant:", expr_node.dict.get("val"))
             return expr_node.dict.get("val")  # Access the integer value
-        #Evaluate constant nodes for strings
         elif expr_node.elem_type == "string":
-            # print("evaluating string constant:", expr_node.dict.get("val"))
             return expr_node.dict.get("val")  # Access the string value
-        elif expr_node.elem_type == "bool":  # Evaluate constant nodes for booleans
+        elif expr_node.elem_type == "bool":
             return expr_node.dict.get("val")  # Access the boolean value
-        elif expr_node.elem_type == "nil":  # Handling for nil
-            return None  # Represent nil as None (or a similar representation)
-
-        #Evaluate binary operations (addition and subtraction)
+        elif expr_node.elem_type == "nil":
+            return None  # Represent nil as None
+        # Evaluate binary operations
         elif expr_node.elem_type in ['+', '-', '*', '/']:
-
-            left_op = self.evaluate_expression(expr_node.dict.get("op1"))   # Get the first operand
-            
-            right_op = self.evaluate_expression(expr_node.dict.get("op2")) # Get the second operand
-            # Handling nil values
-            if left_op is None or right_op is None:
-                super().error(ErrorType.TYPE_ERROR, "Cannot perform arithmetic operation with nil")
-
-            # Need to check incompatible types before performing the operation
-            if isinstance(left_op, str) or isinstance(right_op, str):
-                super().error(ErrorType.TYPE_ERROR, "Incompatible types for arithmetic operation")
-
-            # Perform the operation based on the operator
-        
-
-            if expr_node.elem_type == '+':
-                return left_op + right_op
-            elif expr_node.elem_type == '-':
-                return left_op - right_op
-            elif expr_node.elem_type == '*':
-                return left_op * right_op
-            elif expr_node.elem_type == '/':
-                if right_op == 0:  # Prevent division by zero
-                    super().error(ErrorType.TYPE_ERROR, "Division by zero is not allowed")
-                return left_op // right_op
-        
-        # Handling the comparisons check this implementation: 
-        elif expr_node.elem_type in ['==', '!=', '<', '<=', '>', '>=']:  # Evaluate binary comparison operations
             left_op = self.evaluate_expression(expr_node.dict.get("op1"))
             right_op = self.evaluate_expression(expr_node.dict.get("op2"))
-
-            # Handling nil values in comparisons
-            if left_op is None and right_op is None:
-                return expr_node.elem_type == '=='  # Both are nil, equal
-            elif left_op is None or right_op is None:
-                return expr_node.elem_type == '!='  # One is nil, the other is not
-
-            # Type checking for comparisons
-            if type(left_op) != type(right_op):
-                if isinstance(left_op, (int, bool)) and isinstance(right_op, (int, bool)):
-                    return left_op == right_op if expr_node.elem_type == '==' else left_op != right_op
-                else:
-                    super().error(ErrorType.TYPE_ERROR, "Incompatible types for comparison")
-
-            if expr_node.elem_type == '==':
-                return left_op == right_op
-            elif expr_node.elem_type == '!=':
-                return left_op != right_op
-            elif expr_node.elem_type == '<':
-                return left_op < right_op
-            elif expr_node.elem_type == '<=':
-                return left_op <= right_op
-            elif expr_node.elem_type == '>':
-                return left_op > right_op
-            elif expr_node.elem_type == '>=':
-                return left_op >= right_op
-
-        elif expr_node.elem_type in ['&&', '||']:  # Evaluate logical binary operations
+            # Perform error checks and operations
+            return self.perform_operation(expr_node.elem_type, left_op, right_op)
+        # Handle comparisons
+        elif expr_node.elem_type in ['==', '!=', '<', '<=', '>', '>=']:
             left_op = self.evaluate_expression(expr_node.dict.get("op1"))
             right_op = self.evaluate_expression(expr_node.dict.get("op2"))
-            
-            # Handling nil values in logical operations
-            if left_op is None or right_op is None:
-                super().error(ErrorType.TYPE_ERROR, "Cannot perform logical operation with nil")
-
-            if not isinstance(left_op, bool) or not isinstance(right_op, bool):
-                super().error(ErrorType.TYPE_ERROR, "Incompatible types for logical operation")
-
+            return self.perform_comparison(expr_node.elem_type, left_op, right_op)
+        elif expr_node.elem_type in ['&&', '||']:
+            left_op = self.evaluate_expression(expr_node.dict.get("op1"))
+            right_op = self.evaluate_expression(expr_node.dict.get("op2"))
             return left_op and right_op if expr_node.elem_type == '&&' else left_op or right_op
-
-        elif expr_node.elem_type == '!':  # Evaluate unary logical operation
+        elif expr_node.elem_type == '!':
             op = self.evaluate_expression(expr_node.dict.get("op1"))
-            if op is None:
-                super().error(ErrorType.TYPE_ERROR, "Invalid operation on nil value")
-
-            if not isinstance(op, bool):
-                super().error(ErrorType.TYPE_ERROR, "Invalid operation on non-boolean type")
-
             return not op
-
-        # Evaluate function call expressions
         elif expr_node.elem_type == "fcall":  # Evaluate function call expressions
             function_name = expr_node.dict.get("name")
             args = expr_node.dict.get("args", [])
             return self.do_func_call(function_name, args)  # Pass the function name and args
-
-        # Throw error for unsupported expression type
         super().error(ErrorType.TYPE_ERROR, f"Unsupported expression type: {expr_node.elem_type}")
+
+    def perform_operation(self, op_type, left_op, right_op):
+        # Add error checks for nil and type compatibility here
+        if left_op is None or right_op is None:
+            super().error(ErrorType.TYPE_ERROR, "Cannot perform operation with nil")
+        if isinstance(left_op, str) or isinstance(right_op, str):
+            super().error(ErrorType.TYPE_ERROR, "Incompatible types for arithmetic operation")
+        if op_type == '+':
+            return left_op + right_op
+        elif op_type == '-':
+            return left_op - right_op
+        elif op_type == '*':
+            return left_op * right_op
+        elif op_type == '/':
+            if right_op == 0:  # Prevent division by zero
+                super().error(ErrorType.TYPE_ERROR, "Division by zero is not allowed")
+            return left_op // right_op
+
+    def perform_comparison(self, op_type, left_op, right_op):
+        # Handle comparison operations
+        if left_op is None and right_op is None:
+            return op_type == '=='
+        elif left_op is None or right_op is None:
+            return op_type == '!='
+        if type(left_op) != type(right_op):
+            super().error(ErrorType.TYPE_ERROR, "Incompatible types for comparison")
+        if op_type == '==':
+            return left_op == right_op
+        elif op_type == '!=':
+            return left_op != right_op
+        elif op_type == '<':
+            return left_op < right_op
+        elif op_type == '<=':
+            return left_op <= right_op
+        elif op_type == '>':
+            return left_op > right_op
+        elif op_type == '>=':
+            return left_op >= right_op
     
     def do_func_call(self, func_name, args):
         if func_name == "print":
@@ -290,7 +250,6 @@ class Interpreter(InterpreterBase): # change here for scoping
     def do_return(self, statement_node):
 
         if 'value' in statement_node.dict:
-
             return_value = self.evaluate_expression(statement_node.dict.get('value'))
             return return_value  #Return the evaluated value
         else:
