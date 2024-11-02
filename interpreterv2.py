@@ -7,11 +7,7 @@
 # The evaluation mechanism addresses variables, constants, binary operations, and function calls, while ensuring accurate error handling
 
 
-from intbase import InterpreterBase, ErrorType
-from brewparse import parse_program
-
-
-class Interpreter(InterpreterBase):
+class Interpreter(InterpreterBase): # change here for scoping
 
     def __init__(self, console_output=True, inp=None, trace_output=False):
         super().__init__(console_output, inp)
@@ -19,7 +15,7 @@ class Interpreter(InterpreterBase):
         #self.functions = {}  #Dictionary to store function definitions so that we can call them in any order
 # To implement lexical scoping, we will be using stack of stack of dictionaries. 
 # Each scope stack will have its own dictionary to hold variable names and values
-        self.scopes = [{}]  # Stack of stacks, each stack contains dictionaries for scopes
+        self.scopes = []  # Stack of stacks, each stack contains dictionaries for scopes
     
     def run(self, program):
         #This is the main method to start executing the program
@@ -54,14 +50,14 @@ class Interpreter(InterpreterBase):
         return function_list[0] #Return the main function
 
 
-    def run_func(self, func_node): #made change here for scoping
+    def run_func(self, func_node): # made change here for scoping
      # Execute the statements within a function node   
         statement_list = func_node.get('statements')
         # print("executing statements:", statement_list)
-        self.scopes.append({})  # Push a new dictionary with a new dictionary for the function scope
+        self.scopes.append([{}])  # Push a new inner stack with a new dictionary for the function scope
         for statement in statement_list:
             self.run_statement(statement)
-        self.scopes.pop() #pop the function after execution
+        self.scopes.pop()  # Pop the inner stack after executing the function
     #Loop through each statement to process it
     
     def run_statement(self, statement_node):
@@ -82,22 +78,20 @@ class Interpreter(InterpreterBase):
            super().error(ErrorType.NAME_ERROR, f"Invalid statement")
 
 
-    def do_definition(self, statement_node):
+    def do_definition(self, statement_node): # made change here for scoping
         var_name = statement_node.dict.get("name") # Get variable name from the dictionary
-        # Check if the variable has already been defined
-        var_name = statement_node.dict.get("name")  # Get variable name from the dictionary
-        if var_name in self.scopes[-1]:  # Check if the variable has already been defined in the current scope
+        # Check if the variable has already been defined in the current scope
+        if var_name in self.scopes[-1][-1]:  # Check in the top dictionary of the current stack
             super().error(ErrorType.NAME_ERROR, f"Variable {var_name} defined more than once")
         else:
-            self.scopes[-1][var_name] = None  # Initialize the variable in the current scope
-
+            self.scopes[-1][-1][var_name] = None  # Initialize the variable in the current inner stack
         
 
-    def do_assignment(self, statement_node):
+    def do_assignment(self, statement_node): # made change here for scoping
         var_name = statement_node.dict.get("name")  # Get variable name from the dictionary  
         # Find the variable in the current stack or any outer stacks
         for scope in reversed(self.scopes):
-            if var_name in scope:  # Check in the top dictionary of the current stack
+            if var_name in scope[-1]:  # Check in the top dictionary of the current stack
                 break
         else:
             super().error(ErrorType.NAME_ERROR, f"Variable {var_name} has not been defined")
@@ -106,7 +100,7 @@ class Interpreter(InterpreterBase):
         # Evaluate the right-hand side expression and assign the value
         value = self.evaluate_expression(expr_node)
         scope[-1][var_name] = value  # Update the variable in the found scope
-
+        
     def evaluate_expression(self, expr_node):
      # Evaluate different tpes of expression nodes
         if expr_node.elem_type == "var": # Evaluate variable node
