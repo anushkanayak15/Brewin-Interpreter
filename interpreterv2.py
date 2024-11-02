@@ -7,6 +7,10 @@
 # The evaluation mechanism addresses variables, constants, binary operations, and function calls, while ensuring accurate error handling
 
 
+from intbase import InterpreterBase, ErrorType
+from brewparse import parse_program
+
+
 class Interpreter(InterpreterBase): # change here for scoping
 
     def __init__(self, console_output=True, inp=None, trace_output=False):
@@ -16,13 +20,13 @@ class Interpreter(InterpreterBase): # change here for scoping
 # To implement lexical scoping, we will be using stack of stack of dictionaries. 
 # Each scope stack will have its own dictionary to hold variable names and values
         self.scopes = []  # Stack of stacks, each stack contains dictionaries for scopes
+        self.functions = {}  #Dictionary to store function
     
     def run(self, program):
         #This is the main method to start executing the program
         ast = parse_program(program) # Parse the program into an AST
         # print("parsed the program into AST:", ast)
         self.define_functions(ast)  #Define all functions in the program
-        
         main_func = self.get_main_func(ast)# Retrieve the main function from the AST
         self.run_func(main_func) #Execute the main function
     
@@ -47,14 +51,14 @@ class Interpreter(InterpreterBase): # change here for scoping
                 return func
         # This error is raised  when no main function is found
         super().error(ErrorType.NAME_ERROR, "No main() function was found")
-        return function_list[0] #Return the main function
+        #return function_list[0] #Return the main function
 
 
     def run_func(self, func_node): # made change here for scoping
+        self.scopes.append({})  # Push a new dictionary for the function scope
      # Execute the statements within a function node   
-        statement_list = func_node.get('statements')
+        statement_list = func_node.get("statements")
         # print("executing statements:", statement_list)
-        self.scopes.append([{}])  # Push a new inner stack with a new dictionary for the function scope
         for statement in statement_list:
             self.run_statement(statement)
         self.scopes.pop()  # Pop the inner stack after executing the function
@@ -81,17 +85,17 @@ class Interpreter(InterpreterBase): # change here for scoping
     def do_definition(self, statement_node): # made change here for scoping
         var_name = statement_node.dict.get("name") # Get variable name from the dictionary
         # Check if the variable has already been defined in the current scope
-        if var_name in self.scopes[-1][-1]:  # Check in the top dictionary of the current stack
+        if var_name in self.scopes[-1]:  # Check in the top dictionary of the current stack
             super().error(ErrorType.NAME_ERROR, f"Variable {var_name} defined more than once")
         else:
-            self.scopes[-1][-1][var_name] = None  # Initialize the variable in the current inner stack
+            self.scopes[-1][var_name] = None  # Initialize the variable in the current inner stack
         
 
     def do_assignment(self, statement_node): # made change here for scoping
         var_name = statement_node.dict.get("name")  # Get variable name from the dictionary  
         # Find the variable in the current stack or any outer stacks
         for scope in reversed(self.scopes):
-            if var_name in scope[-1]:  # Check in the top dictionary of the current stack
+            if var_name in scope:  # Check in the top dictionary of the current stack
                 break
         else:
             super().error(ErrorType.NAME_ERROR, f"Variable {var_name} has not been defined")
@@ -99,8 +103,8 @@ class Interpreter(InterpreterBase): # change here for scoping
         expr_node = statement_node.dict.get("expression")
         # Evaluate the right-hand side expression and assign the value
         value = self.evaluate_expression(expr_node)
-        scope[-1][var_name] = value  # Update the variable in the found scope
-        
+        scope[var_name] = value  # Update the variable in the found scope
+
     def evaluate_expression(self, expr_node):
      # Evaluate different tpes of expression nodes
         if expr_node.elem_type == "var": # Evaluate variable node
@@ -206,76 +210,100 @@ class Interpreter(InterpreterBase): # change here for scoping
             return not op
 
         # Evaluate function call expressions
-        elif expr_node.elem_type == "fcall":
-
+        elif expr_node.elem_type == "fcall":  # Evaluate function call expressions
             function_name = expr_node.dict.get("name")
-
             args = expr_node.dict.get("args", [])
+            return self.do_func_call(function_name, args)  # Pass the function name and args
 
-            #Handle print function (not allowed in expressions)
-            if function_name == "print":
+        # elif expr_node.elem_type == "fcall":
 
-                super().error(ErrorType.NAME_ERROR, f"Function {function_name} is not allowed in expressions")
+        #     function_name = expr_node.dict.get("name")
 
-            #Only supporting inputi function calls
+        #     args = expr_node.dict.get("args", [])
+
+        #     #Handle print function (not allowed in expressions)
+        #     if function_name == "print":
+
+        #         super().error(ErrorType.NAME_ERROR, f"Function {function_name} is not allowed in expressions")
+
+        #     #Only supporting inputi function calls
             
-            elif function_name == "inputi":
+        #     elif function_name == "inputi":
                 
-                if len(args) > 1:  # Check for more than one argument
-                    super().error(ErrorType.NAME_ERROR, "No inputi() function found that takes > 1 parameter")
+        #         if len(args) > 1:  # Check for more than one argument
+        #             super().error(ErrorType.NAME_ERROR, "No inputi() function found that takes > 1 parameter")
 
-                 # Handle the user_prompt if it exists
-                if args:
-                    user_prompt = self.evaluate_expression(args[0])  # Evaluate the user_prompt argument
-                    super().output(user_prompt)  # Output the user_prompt to the screen
+        #          # Handle the user_prompt if it exists
+        #         if args:
+        #             user_prompt = self.evaluate_expression(args[0])  # Evaluate the user_prompt argument
+        #             super().output(user_prompt)  # Output the user_prompt to the screen
 
-            # Get user input and convert to integer
-                user_input = super().get_input()
-                # print("result of operation:", result)
-                return int(user_input)  # Return the integer value of the input
+        #     # Get user input and convert to integer
+        #         user_input = super().get_input()
+        #         # print("result of operation:", result)
+        #         return int(user_input)  # Return the integer value of the input
             
-            # Handle the new inputs() function for string input
-            elif function_name == "inputs":
-                return self.handle_inputs(args)
+        #     # Handle the new inputs() function for string input
+        #     elif function_name == "inputs":
+        #         return self.handle_inputs(args)
 
         # Throw error for unsupported expression type
         super().error(ErrorType.TYPE_ERROR, f"Unsupported expression type: {expr_node.elem_type}")
     
-    
-    def do_func_call(self, statement_node):
-        # Get the function name
-        func_name = statement_node.dict.get("name")
-        args = statement_node.dict.get("args", [])
-
-        # Handle built-in print function
-        if func_name == "print":
-            return self.handle_print(statement_node)
-
-        # Handle built-in inputi function
-        elif func_name == "inputi":
-            return self.handle_inputi(statement_node)
-
-        # Check if the function is defined
+    def do_func_call(self, func_name, args):
         if func_name not in self.functions:
             super().error(ErrorType.NAME_ERROR, f"Function {func_name} was not found")
-
-        # Retrieve the defined function
         def_func = self.functions[func_name]
         def_args = def_func.get('args', [])
-
         # Check for correct number of arguments
         if len(args) != len(def_args):
             super().error(ErrorType.NAME_ERROR, f"Function {func_name} takes {len(def_args)} arguments but was called with {len(args)}")
-
         # Prepare a new local context for parameters
-        local_vars = {}  # Initialize local_vars to store parameter values
+        self.scopes.append({})  # Create a new scope for function parameters
         for i, arg in enumerate(args):
-            local_vars[def_args[i].dict.get('name')] = self.evaluate_expression(arg)  # Pass by value
-
+            value = self.evaluate_expression(arg)  # Evaluate the argument expression
+            self.scopes[-1][def_args[i].dict.get('name')] = value  # Pass by value
         # Execute the function with its local variable context
         statement_list = def_func.get('statements', [])
         for statement in statement_list:
-            self.run_statement(statement, local_vars)
+            self.run_statement(statement)
+
+        self.scopes.pop()  # Remove the function scope after execution
+
+    # def do_func_call(self, statement_node):
+    #     # Get the function name
+    #     func_name = statement_node.dict.get("name")
+    #     args = statement_node.dict.get("args", [])
+
+    #     # Handle built-in print function
+    #     if func_name == "print":
+    #         return self.handle_print(statement_node)
+
+    #     # Handle built-in inputi function
+    #     elif func_name == "inputi":
+    #         return self.handle_inputi(statement_node)
+
+    #     # Check if the function is defined
+    #     if func_name not in self.functions:
+    #         super().error(ErrorType.NAME_ERROR, f"Function {func_name} was not found")
+
+    #     # Retrieve the defined function
+    #     def_func = self.functions[func_name]
+    #     def_args = def_func.get('args', [])
+
+    #     # Check for correct number of arguments
+    #     if len(args) != len(def_args):
+    #         super().error(ErrorType.NAME_ERROR, f"Function {func_name} takes {len(def_args)} arguments but was called with {len(args)}")
+
+    #     # Prepare a new local context for parameters
+    #     local_vars = {}  # Initialize local_vars to store parameter values
+    #     for i, arg in enumerate(args):
+    #         local_vars[def_args[i].dict.get('name')] = self.evaluate_expression(arg)  # Pass by value
+
+    #     # Execute the function with its local variable context
+    #     statement_list = def_func.get('statements', [])
+    #     for statement in statement_list:
+    #         self.run_statement(statement, local_vars)
 
 
     def handle_print(self, statement_node):
@@ -322,7 +350,6 @@ class Interpreter(InterpreterBase): # change here for scoping
 
             return_value = self.evaluate_expression(statement_node.dict.get('value'))
             return return_value  #Return the evaluated value
-        
         else:
             return None  # Default return value is nil
     
