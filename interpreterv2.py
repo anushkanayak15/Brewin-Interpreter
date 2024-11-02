@@ -30,20 +30,11 @@ class Interpreter(InterpreterBase): # change here for scoping
         self.run_func(main_func) #Execute the main function
    
     def define_functions(self, ast):
-        function_list = ast.get("functions")  # Get the list of functions from the program
+        function_list = ast.get("functions")
         for func in function_list:
             func_name = func.get("name")
-            arg_count = len(func.dict.get("args", []))  # Get the number of arguments for this function
-
-            # If the function already exists, check the number of arguments
-            if func_name in self.functions:
-                existing_func = self.functions[func_name]
-                existing_arg_count = len(existing_func.dict.get("args", []))
-                if existing_arg_count == arg_count:
-                    super().error(ErrorType.NAME_ERROR, f"Function {func_name} defined with the same number of arguments already")
-            
-            # Store the function definition in the dictionary
-            self.functions[func_name] = func
+            print(f"Defining function: {func_name}")
+            self.functions[func_name] = func  # Store function definition
 
 
     def get_main_func(self, ast):
