@@ -1,6 +1,5 @@
 # Anushka Nayak (605977416)
 
-
 # The Interpreter class initializes variables and prepares to run the program
 # The run method serves as the starting point for executing a Brewin program, transforming it into an ast and executing the main function
 # The interpreter verifies the existence of the main function and executes its statements in order
@@ -8,13 +7,8 @@
 # The evaluation mechanism addresses variables, constants, binary operations, and function calls, while ensuring accurate error handling
 
 
-
-
 from intbase import InterpreterBase, ErrorType
 from brewparse import parse_program
-
-
-
 
 class Interpreter(InterpreterBase): # change here for scoping
 
@@ -39,9 +33,16 @@ class Interpreter(InterpreterBase): # change here for scoping
         function_list = ast.get("functions")  # Get the list of functions from the program
         for func in function_list:
             func_name = func.get("name")
+            arg_count = len(func.dict.get("args", []))  # Get the number of arguments for this function
+
+            # Check if the function already exists and has the same number of arguments
             if func_name in self.functions:
-                super().error(ErrorType.NAME_ERROR, f"Function {func_name} defined more than once")
+                existing_arg_count = len(self.functions[func_name].dict.get("args", []))
+                if existing_arg_count != arg_count:
+                    super().error(ErrorType.NAME_ERROR, f"Function {func_name} defined with differing number of arguments")
+            
             self.functions[func_name] = func  # Store function definition
+
 
 
 
