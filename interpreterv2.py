@@ -35,16 +35,15 @@ class Interpreter(InterpreterBase): # change here for scoping
             func_name = func.get("name")
             arg_count = len(func.dict.get("args", []))  # Get the number of arguments for this function
 
-            # Check if the function already exists and has the same number of arguments
+            # If the function already exists, check the number of arguments
             if func_name in self.functions:
-                existing_arg_count = len(self.functions[func_name].dict.get("args", []))
-                if existing_arg_count != arg_count:
-                    super().error(ErrorType.NAME_ERROR, f"Function {func_name} defined with differing number of arguments")
+                existing_func = self.functions[func_name]
+                existing_arg_count = len(existing_func.dict.get("args", []))
+                if existing_arg_count == arg_count:
+                    super().error(ErrorType.NAME_ERROR, f"Function {func_name} defined with the same number of arguments already")
             
-            self.functions[func_name] = func  # Store function definition
-
-
-
+            # Store the function definition in the dictionary
+            self.functions[func_name] = func
 
 
     def get_main_func(self, ast):
