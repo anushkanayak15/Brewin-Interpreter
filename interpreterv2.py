@@ -167,17 +167,15 @@ class Interpreter(InterpreterBase): # change here for scoping
             # Handling nil values
             if left_op is None or right_op is None:
                 super().error(ErrorType.TYPE_ERROR, "Cannot perform arithmetic operation with nil")
-
-
-            # Need to check incompatible types before performing the operation
-            if isinstance(left_op, str) or isinstance(right_op, str):
+            
+            # Ensure compatible types for operations
+            if isinstance(left_op, str) and isinstance(right_op, str) and expr_node.elem_type == '+':
+                return left_op + right_op  # String concatenation
+            if not isinstance(left_op, int) or not isinstance(right_op, int):
                 super().error(ErrorType.TYPE_ERROR, "Incompatible types for arithmetic operation")
-
 
             # Perform the operation based on the operator
        
-
-
             if expr_node.elem_type == '+':
                 return left_op + right_op
             elif expr_node.elem_type == '-':
@@ -202,12 +200,16 @@ class Interpreter(InterpreterBase): # change here for scoping
                 return expr_node.elem_type == '!='  # One is nil, the other is not
 
 
+            # # Type checking for comparisons
+            # if type(left_op) != type(right_op):
+            #     if isinstance(left_op, (int, bool)) and isinstance(right_op, (int, bool)):
+            #         return left_op == right_op if expr_node.elem_type == '==' else left_op != right_op
+            #     else:
+            #         super().error(ErrorType.TYPE_ERROR, "Incompatible types for comparison")
             # Type checking for comparisons
             if type(left_op) != type(right_op):
-                if isinstance(left_op, (int, bool)) and isinstance(right_op, (int, bool)):
-                    return left_op == right_op if expr_node.elem_type == '==' else left_op != right_op
-                else:
-                    super().error(ErrorType.TYPE_ERROR, "Incompatible types for comparison")
+                super().error(ErrorType.TYPE_ERROR, "Cannot compare values of different types with operators other than == or !=")
+
 
 
             if expr_node.elem_type == '==':
