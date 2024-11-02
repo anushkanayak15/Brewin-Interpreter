@@ -21,6 +21,7 @@ class Interpreter(InterpreterBase): # change here for scoping
 # Each scope stack will have its own dictionary to hold variable names and values
         self.scopes = []  # Stack of stacks, each stack contains dictionaries for scopes
         self.functions = {}  #Dictionary to store function
+        
     
     def run(self, program):
         #This is the main method to start executing the program
@@ -71,7 +72,9 @@ class Interpreter(InterpreterBase): # change here for scoping
         elif type =="=": #For assignment
             self.do_assignment(statement_node) 
         elif type =="fcall": # For function call 
-            self.do_func_call(statement_node)
+            func_name = statement_node.dict.get("name")
+            args = statement_node.dict.get("args", [])
+            self.do_func_call(func_name, args)
         elif type == "if":  # For if statements
             self.do_if(statement_node) #helper func for if statement
         elif type == "for":  # For for loops
@@ -91,19 +94,15 @@ class Interpreter(InterpreterBase): # change here for scoping
             self.scopes[-1][var_name] = None  # Initialize the variable in the current inner stack
         
 
-    def do_assignment(self, statement_node): # made change here for scoping
+    def do_assignment(self, statement_node):
         var_name = statement_node.dict.get("name")  # Get variable name from the dictionary  
-        # Find the variable in the current stack or any outer stacks
         for scope in reversed(self.scopes):
-            if var_name in scope:  # Check in the top dictionary of the current stack
-                break
-        else:
-            super().error(ErrorType.NAME_ERROR, f"Variable {var_name} has not been defined")
-        # Get the expression from the statement node
-        expr_node = statement_node.dict.get("expression")
-        # Evaluate the right-hand side expression and assign the value
-        value = self.evaluate_expression(expr_node)
-        scope[var_name] = value  # Update the variable in the found scope
+            if var_name in scope:  # Check in the current scope
+                expr_node = statement_node.dict.get("expression")
+                value = self.evaluate_expression(expr_node)  # Evaluate the right-hand side
+                scope[var_name] = value  # Update the variable in the found scope
+                return  # Exit after assignment
+        super().error(ErrorType.NAME_ERROR, f"Variable {var_name} has not been defined")
 
     def evaluate_expression(self, expr_node):
      # Evaluate different tpes of expression nodes
@@ -136,8 +135,8 @@ class Interpreter(InterpreterBase): # change here for scoping
             
             right_op = self.evaluate_expression(expr_node.dict.get("op2")) # Get the second operand
             # Handling nil values
-        if left_op is None or right_op is None:
-            super().error(ErrorType.TYPE_ERROR, "Cannot perform arithmetic operation with nil")
+            if left_op is None or right_op is None:
+                super().error(ErrorType.TYPE_ERROR, "Cannot perform arithmetic operation with nil")
 
             # Need to check incompatible types before performing the operation
             if isinstance(left_op, str) or isinstance(right_op, str):
@@ -153,7 +152,9 @@ class Interpreter(InterpreterBase): # change here for scoping
             elif expr_node.elem_type == '*':
                 return left_op * right_op
             elif expr_node.elem_type == '/':
-                return left_op // right_op  # Integer division like python
+                if right_op == 0:  # Prevent division by zero
+                    super().error(ErrorType.TYPE_ERROR, "Division by zero is not allowed")
+                return left_op // right_op
         
         # Handling the comparisons check this implementation: 
         elif expr_node.elem_type in ['==', '!=', '<', '<=', '>', '>=']:  # Evaluate binary comparison operations
@@ -251,10 +252,14 @@ class Interpreter(InterpreterBase): # change here for scoping
         super().error(ErrorType.TYPE_ERROR, f"Unsupported expression type: {expr_node.elem_type}")
     
     def do_func_call(self, func_name, args):
+        if func_name == "print":
+            self.handle_print(args)  # Directly handle the print function
+            return
+        
         if func_name not in self.functions:
             super().error(ErrorType.NAME_ERROR, f"Function {func_name} was not found")
         def_func = self.functions[func_name]
-        def_args = def_func.get('args', [])
+        def_args = def_func.dict.get('args',[])  
         # Check for correct number of arguments
         if len(args) != len(def_args):
             super().error(ErrorType.NAME_ERROR, f"Function {func_name} takes {len(def_args)} arguments but was called with {len(args)}")
@@ -264,7 +269,7 @@ class Interpreter(InterpreterBase): # change here for scoping
             value = self.evaluate_expression(arg)  # Evaluate the argument expression
             self.scopes[-1][def_args[i].dict.get('name')] = value  # Pass by value
         # Execute the function with its local variable context
-        statement_list = def_func.get('statements', [])
+        statement_list = def_func.dict.get('statements', [])
         for statement in statement_list:
             self.run_statement(statement)
 
@@ -306,15 +311,10 @@ class Interpreter(InterpreterBase): # change here for scoping
     #         self.run_statement(statement, local_vars)
 
 
-    def handle_print(self, statement_node):
-       
+    def handle_print(self, args):
         # Get arguments and evaluate them
-
-        args = [self.evaluate_expression(arg) for arg in statement_node.dict.get('args', [])]
-
-        
-        output_str = ''.join(map(str, args))# Convert all arguments to strings and concatenate them
-    #   print("output string to print:", output_str) 
+        evaluated_args = [self.evaluate_expression(arg) for arg in args]
+        output_str = ''.join(map(str, evaluated_args))  # Convert all arguments to strings and concatenate them
         super().output(output_str)
         return None
 
