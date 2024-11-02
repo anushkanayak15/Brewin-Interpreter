@@ -29,12 +29,27 @@ class Interpreter(InterpreterBase): # change here for scoping
         main_func = self.get_main_func(ast)# Retrieve the main function from the AST
         self.run_func(main_func) #Execute the main function
    
+    # def define_functions(self, ast):
+    #     function_list = ast.get("functions")
+    #     for func in function_list:
+    #         func_name = func.get("name")
+    #         print(f"Defining function: {func_name}")
+    #         self.functions[func_name] = func  # Store function definition
     def define_functions(self, ast):
         function_list = ast.get("functions")
         for func in function_list:
             func_name = func.get("name")
-            print(f"Defining function: {func_name}")
-            self.functions[func_name] = func  # Store function definition
+            arg_count = len(func.dict.get("args", []))  # Count the number of arguments
+            print(f"Defining function: {func_name} with {arg_count} args")
+
+            # Create a unique key for the function based on its name and number of arguments
+            key = f"{func_name}_{arg_count}"
+
+            if key in self.functions:
+                super().error(ErrorType.NAME_ERROR, f"Function {func_name} already defined with {arg_count} arguments")
+            
+            self.functions[key] = func  # Store the function definition with the unique key
+            
 
 
     def get_main_func(self, ast):
@@ -50,8 +65,6 @@ class Interpreter(InterpreterBase): # change here for scoping
         # This error is raised  when no main function is found
         super().error(ErrorType.NAME_ERROR, "No main() function was found")
         #return function_list[0] #Return the main function
-
-
 
 
     def run_func(self, func_node):  # Updated for handling nested functions
@@ -250,30 +263,59 @@ class Interpreter(InterpreterBase): # change here for scoping
         # Throw error for unsupported expression type
         super().error(ErrorType.TYPE_ERROR, f"Unsupported expression type: {expr_node.elem_type}")
    
+    # def do_func_call(self, func_name, args):
+    #     if func_name == "print":
+    #         self.handle_print(args)  # Directly handle the print function
+    #         return
+       
+    #     if func_name not in self.functions:
+    #         super().error(ErrorType.NAME_ERROR, f"Function {func_name} was not found")
+    #     def_func = self.functions[func_name]
+    #     def_args = def_func.dict.get('args',[])  
+    #     # Check for correct number of arguments
+    #     if len(args) != len(def_args):
+    #         super().error(ErrorType.NAME_ERROR, f"Function {func_name} takes {len(def_args)} arguments but was called with {len(args)}")
+    #     # Prepare a new local context for parameters
+    #     self.scopes.append({})  # Create a new scope for function parameters
+    #     for i, arg in enumerate(args):
+    #         value = self.evaluate_expression(arg)  # Evaluate the argument expression
+    #         self.scopes[-1][def_args[i].dict.get('name')] = value  # Pass by value
+    #     # Execute the function with its local variable context
+    #     statement_list = def_func.dict.get('statements', [])
+    #     for statement in statement_list:
+    #         self.run_statement(statement)
+
+
+    #     self.scopes.pop()  # Remove the function scope after execution
     def do_func_call(self, func_name, args):
         if func_name == "print":
             self.handle_print(args)  # Directly handle the print function
             return
-       
-        if func_name not in self.functions:
-            super().error(ErrorType.NAME_ERROR, f"Function {func_name} was not found")
-        def_func = self.functions[func_name]
-        def_args = def_func.dict.get('args',[])  
-        # Check for correct number of arguments
-        if len(args) != len(def_args):
+        arg_count = len(args)  # Get the number of arguments passed
+        key = f"{func_name}_{arg_count}"  # Create the key for the overloaded function
+
+        if key not in self.functions:
+            super().error(ErrorType.NAME_ERROR, f"Function {func_name} with {arg_count} arguments was not found")
+        
+        def_func = self.functions[key]  # Retrieve the correct function definition
+        def_args = def_func.dict.get('args', [])
+        
+        if len(args) != len(def_args):  # Check for correct number of arguments
             super().error(ErrorType.NAME_ERROR, f"Function {func_name} takes {len(def_args)} arguments but was called with {len(args)}")
-        # Prepare a new local context for parameters
+
         self.scopes.append({})  # Create a new scope for function parameters
         for i, arg in enumerate(args):
             value = self.evaluate_expression(arg)  # Evaluate the argument expression
-            self.scopes[-1][def_args[i].dict.get('name')] = value  # Pass by value
-        # Execute the function with its local variable context
+            param_name = def_args[i].dict.get('name')
+            self.scopes[-1][param_name] = value  # Assign the evaluated value to the parameter name
+
         statement_list = def_func.dict.get('statements', [])
         for statement in statement_list:
-            self.run_statement(statement)
-
+            self.run_statement(statement)  # Execute each statement in the function
 
         self.scopes.pop()  # Remove the function scope after execution
+
+
 
 
     def handle_print(self, args):
@@ -386,19 +428,25 @@ class Interpreter(InterpreterBase): # change here for scoping
             self.do_assignment(statement_node.dict.get('update'))  #Execute the update statement
              
 def main():
-    # Sample Brewin program to test the interpreter
-    program = """func foo() {
-                    var x;
-                    x = 5 + 6;
-                    print("The sum is: ", x);
+    program = """func f(x) {
+                    return x; // Simple function returning its input
                  }
 
-
                  func main() {
-                     foo();  // Call the foo function
-                 }"""  
-    interpreter = Interpreter()  # Create an instance of the interpreter
-    # Run the program
+                    var x;
+                    x = 10;
+                    if (f(x) > 5) {
+                        print(x);
+                        if (x < 30 && x > 10) {
+                            print(3 * x);
+                        }
+                    } else {
+                        print("x is not greater than 5");
+                    }
+                 }"""
+    
+    interpreter = Interpreter()
     interpreter.run(program)
+
 if __name__ == "__main__":
     main()
