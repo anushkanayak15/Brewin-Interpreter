@@ -15,8 +15,6 @@ class Interpreter(InterpreterBase): # change here for scoping
 
     def __init__(self, console_output=True, inp=None, trace_output=False):
         super().__init__(console_output, inp)
-        #self.variables = {}  #Dictionary to store variable names and values 
-        #self.functions = {}  #Dictionary to store function definitions so that we can call them in any order
 # To implement lexical scoping, we will be using stack of stack of dictionaries. 
 # Each scope stack will have its own dictionary to hold variable names and values
         self.scopes = []  # Stack of stacks, each stack contains dictionaries for scopes
@@ -55,14 +53,22 @@ class Interpreter(InterpreterBase): # change here for scoping
         #return function_list[0] #Return the main function
 
 
-    def run_func(self, func_node): # made change here for scoping
+    def run_func(self, func_node):  # Updated for handling nested functions
         self.scopes.append({})  # Push a new dictionary for the function scope
-     # Execute the statements within a function node   
-        statement_list = func_node.get("statements")
-        # print("executing statements:", statement_list)
+        
+        # Initialize function parameters in the new scope
+        param_list = func_node.dict.get("params", [])  # Get the list of parameters if they exist
+        for param in param_list:
+            param_name = param.get("name")
+            self.scopes[-1][param_name] = None  # Initialize parameters to None or a default value
+
+        # Execute the statements within a function node   
+        statement_list = func_node.dict.get("statements", [])
         for statement in statement_list:
             self.run_statement(statement)
+        
         self.scopes.pop()  # Pop the inner stack after executing the function
+
     #Loop through each statement to process it
     
     def run_statement(self, statement_node):
@@ -89,9 +95,10 @@ class Interpreter(InterpreterBase): # change here for scoping
         var_name = statement_node.dict.get("name") # Get variable name from the dictionary
         # Check if the variable has already been defined in the current scope
         if var_name in self.scopes[-1]:  # Check in the top dictionary of the current stack
-            super().error(ErrorType.NAME_ERROR, f"Variable {var_name} defined more than once")
+            super().error(ErrorType.NAME_ERROR, f"Variable {var_name} defined more than once in the same scope")
         else:
             self.scopes[-1][var_name] = None  # Initialize the variable in the current inner stack
+    
         
 
     def do_assignment(self, statement_node):
@@ -216,38 +223,6 @@ class Interpreter(InterpreterBase): # change here for scoping
             args = expr_node.dict.get("args", [])
             return self.do_func_call(function_name, args)  # Pass the function name and args
 
-        # elif expr_node.elem_type == "fcall":
-
-        #     function_name = expr_node.dict.get("name")
-
-        #     args = expr_node.dict.get("args", [])
-
-        #     #Handle print function (not allowed in expressions)
-        #     if function_name == "print":
-
-        #         super().error(ErrorType.NAME_ERROR, f"Function {function_name} is not allowed in expressions")
-
-        #     #Only supporting inputi function calls
-            
-        #     elif function_name == "inputi":
-                
-        #         if len(args) > 1:  # Check for more than one argument
-        #             super().error(ErrorType.NAME_ERROR, "No inputi() function found that takes > 1 parameter")
-
-        #          # Handle the user_prompt if it exists
-        #         if args:
-        #             user_prompt = self.evaluate_expression(args[0])  # Evaluate the user_prompt argument
-        #             super().output(user_prompt)  # Output the user_prompt to the screen
-
-        #     # Get user input and convert to integer
-        #         user_input = super().get_input()
-        #         # print("result of operation:", result)
-        #         return int(user_input)  # Return the integer value of the input
-            
-        #     # Handle the new inputs() function for string input
-        #     elif function_name == "inputs":
-        #         return self.handle_inputs(args)
-
         # Throw error for unsupported expression type
         super().error(ErrorType.TYPE_ERROR, f"Unsupported expression type: {expr_node.elem_type}")
     
@@ -275,48 +250,16 @@ class Interpreter(InterpreterBase): # change here for scoping
 
         self.scopes.pop()  # Remove the function scope after execution
 
-    # def do_func_call(self, statement_node):
-    #     # Get the function name
-    #     func_name = statement_node.dict.get("name")
-    #     args = statement_node.dict.get("args", [])
-
-    #     # Handle built-in print function
-    #     if func_name == "print":
-    #         return self.handle_print(statement_node)
-
-    #     # Handle built-in inputi function
-    #     elif func_name == "inputi":
-    #         return self.handle_inputi(statement_node)
-
-    #     # Check if the function is defined
-    #     if func_name not in self.functions:
-    #         super().error(ErrorType.NAME_ERROR, f"Function {func_name} was not found")
-
-    #     # Retrieve the defined function
-    #     def_func = self.functions[func_name]
-    #     def_args = def_func.get('args', [])
-
-    #     # Check for correct number of arguments
-    #     if len(args) != len(def_args):
-    #         super().error(ErrorType.NAME_ERROR, f"Function {func_name} takes {len(def_args)} arguments but was called with {len(args)}")
-
-    #     # Prepare a new local context for parameters
-    #     local_vars = {}  # Initialize local_vars to store parameter values
-    #     for i, arg in enumerate(args):
-    #         local_vars[def_args[i].dict.get('name')] = self.evaluate_expression(arg)  # Pass by value
-
-    #     # Execute the function with its local variable context
-    #     statement_list = def_func.get('statements', [])
-    #     for statement in statement_list:
-    #         self.run_statement(statement, local_vars)
-
-
     def handle_print(self, args):
-        # Get arguments and evaluate them
+        #Function to handle function call nodes, print, and input
         evaluated_args = [self.evaluate_expression(arg) for arg in args]
-        output_str = ''.join(map(str, evaluated_args))  # Convert all arguments to strings and concatenate them
+        output_str = ''
+        for arg in evaluated_args:
+            if isinstance(arg, bool):
+                output_str += 'true' if arg else 'false'
+            else:
+                output_str += str(arg)  # Convert other types to string
         super().output(output_str)
-        return None
 
 
 
@@ -324,7 +267,7 @@ class Interpreter(InterpreterBase): # change here for scoping
    
         user_prompt = statement_node.dict.get("args", [])
         
-        # If a user_prompt is provided, evaluate it
+        # If a usedr_prompt is provided, evaluate it
         if len(user_prompt) > 0:
             prompt_str = self.evaluate_expression(user_prompt[0])
             super().output(prompt_str)
@@ -398,10 +341,7 @@ class Interpreter(InterpreterBase): # change here for scoping
                 self.run_statement(statement)  # execute the statements within the loop
             
             self.do_assignment(statement_node.dict.get('update'))  #Execute the update statement
-        
-
-
-      
+             
 def main():
     # Sample Brewin program to test the interpreter
     program = """func foo() {
@@ -412,12 +352,9 @@ def main():
 
                  func main() {
                      foo();  // Call the foo function
-                 }"""
-    
+                 }"""  
     interpreter = Interpreter()  # Create an instance of the interpreter
-    
     # Run the program
     interpreter.run(program)
-
 if __name__ == "__main__":
     main()
