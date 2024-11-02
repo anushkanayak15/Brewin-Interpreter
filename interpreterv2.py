@@ -19,7 +19,8 @@ class Interpreter(InterpreterBase):
         #self.functions = {}  #Dictionary to store function definitions so that we can call them in any order
 # To implement lexical scoping, we will be using stack of stack of dictionaries. 
 # Each scope stack will have its own dictionary to hold variable names and values
-        self.scopes = [[]]  # Stack of stacks, each stack contains dictionaries for scopes
+        self.scopes = [{}]  # Stack of stacks, each stack contains dictionaries for scopes
+    
     def run(self, program):
         #This is the main method to start executing the program
         ast = parse_program(program) # Parse the program into an AST
@@ -39,31 +40,25 @@ class Interpreter(InterpreterBase):
 
 
     def get_main_func(self, ast):
-        
         function_list = ast.get("functions") #To get the list of functions from the program
-    
         #  Check if there are functions and if the main function is present
         if len(function_list) < 1: #When no functions are there
             super().error(ErrorType.NAME_ERROR, "No main() function was found")
-        
-    
         #Look for the main function specifically  trhought looping
         for func in function_list:
             if func.get('name') == 'main':
                # print("found main function:", func)
                 return func
-    
         # This error is raised  when no main function is found
         super().error(ErrorType.NAME_ERROR, "No main() function was found")
-
         return function_list[0] #Return the main function
 
 
-    def run_func(self, func_node):
+    def run_func(self, func_node): #made change here for scoping
      # Execute the statements within a function node   
         statement_list = func_node.get('statements')
         # print("executing statements:", statement_list)
-        self.scopes.append([{}])  # Push a new stack with a new dictionary for the function scope
+        self.scopes.append({})  # Push a new dictionary with a new dictionary for the function scope
         for statement in statement_list:
             self.run_statement(statement)
         self.scopes.pop() #pop the function after execution
@@ -71,56 +66,43 @@ class Interpreter(InterpreterBase):
     
     def run_statement(self, statement_node):
         type = statement_node.elem_type
-
         if type =="vardef": # For variable definition
             self.do_definition(statement_node)
-
         elif type =="=": #For assignment
-            self.do_assignment(statement_node)
-        
+            self.do_assignment(statement_node) 
         elif type =="fcall": # For function call 
             self.do_func_call(statement_node)
-
         elif type == "if":  # For if statements
             self.do_if(statement_node) #helper func for if statement
-
         elif type == "for":  # For for loops
             self.do_for(statement_node) #helper func for handling for statement
-
         elif type == "return":  # For return statements
-            return self.do_return(statement_node)
-        
+            return self.do_return(statement_node)      
         else:
            super().error(ErrorType.NAME_ERROR, f"Invalid statement")
 
 
     def do_definition(self, statement_node):
-
         var_name = statement_node.dict.get("name") # Get variable name from the dictionary
-
         # Check if the variable has already been defined
         var_name = statement_node.dict.get("name")  # Get variable name from the dictionary
-
-        if var_name in self.scopes[-1][-1]:  # Check if the variable has already been defined in the current scope
+        if var_name in self.scopes[-1]:  # Check if the variable has already been defined in the current scope
             super().error(ErrorType.NAME_ERROR, f"Variable {var_name} defined more than once")
         else:
-            self.scopes[-1][-1][var_name] = None  # Initialize the variable in the current scope
+            self.scopes[-1][var_name] = None  # Initialize the variable in the current scope
 
         
 
     def do_assignment(self, statement_node):
         var_name = statement_node.dict.get("name")  # Get variable name from the dictionary  
-
         # Find the variable in the current stack or any outer stacks
         for scope in reversed(self.scopes):
-            if var_name in scope[-1]:  # Check in the top dictionary of the current stack
+            if var_name in scope:  # Check in the top dictionary of the current stack
                 break
         else:
             super().error(ErrorType.NAME_ERROR, f"Variable {var_name} has not been defined")
-
         # Get the expression from the statement node
         expr_node = statement_node.dict.get("expression")
-
         # Evaluate the right-hand side expression and assign the value
         value = self.evaluate_expression(expr_node)
         scope[-1][var_name] = value  # Update the variable in the found scope
@@ -128,28 +110,24 @@ class Interpreter(InterpreterBase):
     def evaluate_expression(self, expr_node):
      # Evaluate different tpes of expression nodes
         if expr_node.elem_type == "var": # Evaluate variable node
-
             var_name = expr_node.dict.get("name")  # Access the variable name
             
             # Find the variable in the current stack or any outer stacks
             for scope in reversed(self.scopes):
-                if var_name in scope[-1]:  # Check in the top dictionary of the current stack
-                    return scope[-1][var_name]
+                if var_name in scope:  # Check in the top dictionary of the current stack
+                    return scope[var_name]
             super().error(ErrorType.NAME_ERROR, f"Variable {var_name} has not been defined")
 
         #Evaluate constant nodes for integers
         elif expr_node.elem_type == "int":
             #print("evaluating integer constant:", expr_node.dict.get("val"))
             return expr_node.dict.get("val")  # Access the integer value
-
         #Evaluate constant nodes for strings
         elif expr_node.elem_type == "string":
             # print("evaluating string constant:", expr_node.dict.get("val"))
             return expr_node.dict.get("val")  # Access the string value
-        
         elif expr_node.elem_type == "bool":  # Evaluate constant nodes for booleans
             return expr_node.dict.get("val")  # Access the boolean value
-        
         elif expr_node.elem_type == "nil":  # Handling for nil
             return None  # Represent nil as None (or a similar representation)
 
@@ -358,12 +336,10 @@ class Interpreter(InterpreterBase):
         # Handles string inputs from user
         if len(args) > 1:  # Check for more than one argument
             super().error(ErrorType.NAME_ERROR, "No inputs() function found that takes > 1 parameter")
-
         user_prompt = ''
         if args:
             user_prompt = self.evaluate_expression(args[0])
             super().output(user_prompt)  # Output the user prompt to the screen
-
         return super().get_input()  #Get string input and return it
 
     def do_if(self, statement_node):
@@ -381,7 +357,7 @@ class Interpreter(InterpreterBase):
         elif else_stm:  # If the condition is false & there are else statements, execute the else statements
             for statement in else_stm:
                 self.run_statement(statement)
-        return None
+        
 
 
     def do_for(self, statement_node):
@@ -401,7 +377,7 @@ class Interpreter(InterpreterBase):
                 self.run_statement(statement)  # execute the statements within the loop
             
             self.do_assignment(statement_node.dict.get('update'))  #Execute the update statement
-        return None
+        
 
 
       
