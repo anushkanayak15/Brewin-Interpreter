@@ -15,9 +15,11 @@ class Interpreter(InterpreterBase):
 
     def __init__(self, console_output=True, inp=None, trace_output=False):
         super().__init__(console_output, inp)
-        self.variables = {}  #Dictionary to store variable names and values 
-        self.functions = {}  #Dictionary to store function definitions so that we can call them in any order
-
+        #self.variables = {}  #Dictionary to store variable names and values 
+        #self.functions = {}  #Dictionary to store function definitions so that we can call them in any order
+# To implement lexical scoping, we will be using stack of stack of dictionaries. 
+# Each scope stack will have its own dictionary to hold variable names and values
+        self.scopes = [[]]  # Stack of stacks, each stack contains dictionaries for scopes
     def run(self, program):
         #This is the main method to start executing the program
         ast = parse_program(program) # Parse the program into an AST
@@ -61,9 +63,10 @@ class Interpreter(InterpreterBase):
      # Execute the statements within a function node   
         statement_list = func_node.get('statements')
         # print("executing statements:", statement_list)
-        
+        self.scopes.append([{}])  # Push a new stack with a new dictionary for the function scope
         for statement in statement_list:
             self.run_statement(statement)
+        self.scopes.pop() #pop the function after execution
     #Loop through each statement to process it
     
     def run_statement(self, statement_node):
@@ -88,10 +91,7 @@ class Interpreter(InterpreterBase):
             return self.do_return(statement_node)
         
         else:
-           super().error(
-               ErrorType.NAME_ERROR,
-               f"Invalid statement",
-           )
+           super().error(ErrorType.NAME_ERROR, f"Invalid statement")
 
 
     def do_definition(self, statement_node):
@@ -99,25 +99,23 @@ class Interpreter(InterpreterBase):
         var_name = statement_node.dict.get("name") # Get variable name from the dictionary
 
         # Check if the variable has already been defined
-        if var_name in self.variables:
-            #If variable is defined more than once
-            super().error(ErrorType.NAME_ERROR, f"Variable {var_name} defined more than once")
+        var_name = statement_node.dict.get("name")  # Get variable name from the dictionary
 
+        if var_name in self.scopes[-1][-1]:  # Check if the variable has already been defined in the current scope
+            super().error(ErrorType.NAME_ERROR, f"Variable {var_name} defined more than once")
         else:
-            
-            self.variables[var_name] =None # Initialize the variable in the dictionary with no value
-        #   print("variable initialized:", var_name)
+            self.scopes[-1][-1][var_name] = None  # Initialize the variable in the current scope
 
         
 
     def do_assignment(self, statement_node):
-    
-        var_name = statement_node.dict.get("name") # Get variable name from the dictionary  
-    # To check if the variable was defined
-         # print("assigning value to variable:", var_name)
+        var_name = statement_node.dict.get("name")  # Get variable name from the dictionary  
 
-        if var_name not in self.variables:
-
+        # Find the variable in the current stack or any outer stacks
+        for scope in reversed(self.scopes):
+            if var_name in scope[-1]:  # Check in the top dictionary of the current stack
+                break
+        else:
             super().error(ErrorType.NAME_ERROR, f"Variable {var_name} has not been defined")
 
         # Get the expression from the statement node
@@ -125,19 +123,19 @@ class Interpreter(InterpreterBase):
 
         # Evaluate the right-hand side expression and assign the value
         value = self.evaluate_expression(expr_node)
-        
-        self.variables[var_name] = value
-    
+        scope[-1][var_name] = value  # Update the variable in the found scope
+
     def evaluate_expression(self, expr_node):
      # Evaluate different tpes of expression nodes
         if expr_node.elem_type == "var": # Evaluate variable node
 
             var_name = expr_node.dict.get("name")  # Access the variable name
             
-            if var_name not in self.variables: # CHeck if variable has been defined
-                super().error(ErrorType.NAME_ERROR, f"Variable {var_name} has not been defined")
-            # print("evaluating variable:", var_name)
-            return self.variables[var_name]
+            # Find the variable in the current stack or any outer stacks
+            for scope in reversed(self.scopes):
+                if var_name in scope[-1]:  # Check in the top dictionary of the current stack
+                    return scope[-1][var_name]
+            super().error(ErrorType.NAME_ERROR, f"Variable {var_name} has not been defined")
 
         #Evaluate constant nodes for integers
         elif expr_node.elem_type == "int":
@@ -318,6 +316,8 @@ class Interpreter(InterpreterBase):
         output_str = ''.join(map(str, args))# Convert all arguments to strings and concatenate them
     #   print("output string to print:", output_str) 
         super().output(output_str)
+        return None
+
 
 
     def handle_inputi(self, statement_node):
@@ -381,6 +381,8 @@ class Interpreter(InterpreterBase):
         elif else_stm:  # If the condition is false & there are else statements, execute the else statements
             for statement in else_stm:
                 self.run_statement(statement)
+        return None
+
 
     def do_for(self, statement_node):
         self.do_assignment(statement_node.dict.get('init'))  #Execute the initialization statement
@@ -399,6 +401,7 @@ class Interpreter(InterpreterBase):
                 self.run_statement(statement)  # execute the statements within the loop
             
             self.do_assignment(statement_node.dict.get('update'))  #Execute the update statement
+        return None
 
 
       
