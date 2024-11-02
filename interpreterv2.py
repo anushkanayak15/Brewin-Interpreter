@@ -185,7 +185,7 @@ class Interpreter(InterpreterBase): # change here for scoping
             elif expr_node.elem_type == '/':
                 if right_op == 0:  # Prevent division by zero
                     super().error(ErrorType.TYPE_ERROR, "Division by zero is not allowed")
-                return right_op // left_op
+                return left_op // right_op
        
         # Handling the comparisons check this implementation:
         elif expr_node.elem_type in ['==', '!=', '<', '<=', '>', '>=']:  # Evaluate binary comparison operations
