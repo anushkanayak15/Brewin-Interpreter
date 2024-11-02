@@ -78,6 +78,12 @@ class Interpreter(InterpreterBase):
         elif type =="fcall": # For function call 
             self.do_func_call(statement_node)
 
+        elif type == "if":  # For if statements
+            self.do_if(statement_node) #helper func for if statement
+
+        elif type == "for":  # For for loops
+            self.do_for(statement_node) #helper func for handling for statement
+
         elif type == "return":  # For return statements
             return self.do_return(statement_node)
         
@@ -264,7 +270,8 @@ class Interpreter(InterpreterBase):
 
         # Throw error for unsupported expression type
         super().error(ErrorType.TYPE_ERROR, f"Unsupported expression type: {expr_node.elem_type}")
-        
+    
+    
     def do_func_call(self, statement_node):
         # Get the function name
         func_name = statement_node.dict.get("name")
@@ -342,7 +349,7 @@ class Interpreter(InterpreterBase):
         if 'value' in statement_node.dict:
 
             return_value = self.evaluate_expression(statement_node.dict.get('value'))
-            return return_value  # Return the evaluated value
+            return return_value  #Return the evaluated value
         
         else:
             return None  # Default return value is nil
@@ -357,7 +364,42 @@ class Interpreter(InterpreterBase):
             user_prompt = self.evaluate_expression(args[0])
             super().output(user_prompt)  # Output the user prompt to the screen
 
-        return super().get_input()  # Get string input and return it
+        return super().get_input()  #Get string input and return it
+
+    def do_if(self, statement_node):
+        condition = self.evaluate_expression(statement_node.dict.get('condition'))
+
+        if not isinstance(condition, bool):  # Ensure the condition evaluates to a boolean
+            super().error(ErrorType.TYPE_ERROR, "Condition in if statement must be of bool type")
+
+        statements = statement_node.dict.get('statements', [])
+        else_stm = statement_node.dict.get('else_stm', None)
+
+        if condition:  # If the condition is true, execute  if block
+            for statement in statements:
+                self.run_statement(statement)
+        elif else_stm:  # If the condition is false & there are else statements, execute the else statements
+            for statement in else_stm:
+                self.run_statement(statement)
+
+    def do_for(self, statement_node):
+        self.do_assignment(statement_node.dict.get('init'))  #Execute the initialization statement
+
+        while True:
+            condition = self.evaluate_expression(statement_node.dict.get('condition'))
+
+            if not isinstance(condition, bool):  #Ensure the condition evaluates to a boolean
+                super().error(ErrorType.TYPE_ERROR, "Condition in loops must be of bool type")
+
+            if not condition:  #if condition is false  exit the loop
+                break
+
+            statements = statement_node.dict.get('statements', [])
+            for statement in statements:
+                self.run_statement(statement)  # execute the statements within the loop
+            
+            self.do_assignment(statement_node.dict.get('update'))  #Execute the update statement
+
 
       
 def main():
