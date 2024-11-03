@@ -124,10 +124,11 @@ class Interpreter(InterpreterBase): # change here for scoping
         # Check if there is a current scope to define the variable
         if not self.scopes or not self.scopes[-1]:
             super().error(ErrorType.NAME_ERROR, "No current scope to define variable")
+        
 
         # # Check in the current top dictionary of the stack for duplicates
-        # if var_name in self.scopes[-1][-1]:  
-        #     super().error(ErrorType.NAME_ERROR, f"Duplicate definition for variable {var_name}")
+        if var_name in self.scopes[-1][-1]:  
+            super().error(ErrorType.NAME_ERROR, f"Duplicate definition for variable {var_name}")
 
         # Add the variable to the current scope and initialize it to None
         
@@ -376,46 +377,6 @@ class Interpreter(InterpreterBase): # change here for scoping
         
         # Return the captured return value (default to None if not set)
         return self.return_value if self.return_value is not None else None
-    
-    # def do_func_call(self, func_name, args):
-    #     if func_name == "print":
-    #         self.handle_print(args)  # Directly handle the print function
-    #         return None
-        
-        
-    #     if func_name == "inputs":
-    #         return self.handle_inputs(args)
-        
-    #     if func_name == "inputi":
-    #         return self.handle_inputi(args)
-        
-    #     arg_count = len(args)  # Get the number of arguments passed
-    #     key = f"{func_name}_{arg_count}"  # Create the key for the overloaded function
-    #     if key not in self.functions:
-    #         super().error(ErrorType.NAME_ERROR, f"Function {func_name} with {arg_count} arguments was not found")
-
-    #     def_func = self.functions[key]  # Retrieve the correct function definition
-    #     def_args = def_func.dict.get('args', [])
-    #     if len(args) != len(def_args):  # Check for correct number of arguments
-    #         super().error(ErrorType.NAME_ERROR, f"Function {func_name} takes {len(def_args)} arguments but was called with {len(args)}")
-    #     func_scope = {} 
-    #     self.scopes.append([func_scope])# Create a new scope for function parameters
-    #     for i, arg in enumerate(args):
-    #         value = self.evaluate_expression(arg)  # Evaluate the argument expression
-    #         param_name = def_args[i].dict.get('name')
-    #         self.scopes[-1][-1][param_name] = value  # Assign the evaluated value to the parameter name
-
-    #     statement_list = def_func.dict.get('statements', [])
-    #     self.early_return_flag = False
-    #     self.return_value = None  # Initialize return_value
-        
-    #     for statement in statement_list:
-    #         self.run_statement(statement)  # Execute each statement in the function
-    #         if self.early_return_flag:  # Check for early return
-    #             break
-
-    #     self.scopes.pop()  # Remove the function scope after execution
-    #     return self.return_value if self.return_value is not None else None  # Return the captured return value
 
 
     def handle_print(self, args):
@@ -527,21 +488,11 @@ class Interpreter(InterpreterBase): # change here for scoping
 def main():
     program = """
 
-  func foo(c) { 
-  if (c == 10) {
-    return 5;
-  }
-  else {
-    return 3;
-  }
+  func main () {
+  print(true && false);
+  print(true && true);
+
 }
-
-func main() {
-  print(foo(10));
-  print(foo(11));
-}
-
-
                  """
 
     interpreter = Interpreter()
