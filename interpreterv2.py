@@ -59,23 +59,25 @@ class Interpreter(InterpreterBase): # change here for scoping
         #return function_list[0] #Return the main function
 
 
-    def run_func(self, func_node):  # Updated for handling nested functions
+    def run_func(self, func_node):
         self.scopes.append({})  # Push a new dictionary for the function scope
-        #self.scopes[-1].append({})  # Create a new dictionary for the function's scope
-       
+
         # Initialize function parameters in the new scope
-        param_list = func_node.dict.get("params", [])  # Get the list of parameters if they exist
+        param_list = func_node.dict.get("params", [])
         for param in param_list:
             param_name = param.get("name")
-            self.scopes[-1][param_name] = None  # Initialize parameters to None or a default value
-
+            self.scopes[-1][param_name] = None  # Initialize parameters to None
 
         # Execute the statements within a function node  
         statement_list = func_node.dict.get("statements", [])
         for statement in statement_list:
-            self.run_statement(statement)
-       
-        self.scopes.pop()  # Pop the inner stack after executing the function
+            return_value = self.run_statement(statement)
+            if return_value is not None:  # If a return value is encountered
+                self.scopes.pop()  # Clean up the current scope
+                return return_value  # Propagate the return value
+
+        self.scopes.pop()  # Clean up the scope if no return was encountered
+        return None  # Return None if no return value was found
 
 
     #Loop through each statement to process it
@@ -319,25 +321,21 @@ class Interpreter(InterpreterBase): # change here for scoping
         super().output(output_str)
 
     def handle_inputi(self, statement_node):
-    
-        args = statement_node.get("args", [])
-
-        if len(args) != 1:
-            super().error(ErrorType.NAME_ERROR, "inputi() requires exactly one prompt argument")
-
-        prompt_expr = args[0]  # Take the first argument for the prompt
-        prompt = self.evaluate_expression(prompt_expr)  # Evaluate to get the prompt string
-
-        # Output the prompt to the user
-        super().output(prompt)
+    # Check if statement_node is indeed a list (which it seems to be)
+        if isinstance(statement_node, list):
+            args = statement_node  # Assuming statement_node is a list of arguments
+        else:
+            args = statement_node.dict.get("args", [])
+        
+        # If a user prompt is provided, evaluate it
+        if len(args) > 0:
+            prompt_str = self.evaluate_expression(args[0])  # Evaluate the first argument as the prompt
+            super().output(prompt_str)
 
         # Get input from user
         user_input = super().get_input()
-
-        # Return the converted integer value
-        return self.convert_to_integer(user_input)
-
-
+        
+        return self.convert_to_integer(user_input)  # Convert and return the user input
 
 
 #convert user input to an integer, handling potential errors
@@ -350,29 +348,26 @@ class Interpreter(InterpreterBase): # change here for scoping
             super().error(ErrorType.TYPE_ERROR, "Input value is not an integer")
    
     def do_return(self, statement_node):
-
-
         if 'value' in statement_node.dict:
-
-
             return_value = self.evaluate_expression(statement_node.dict.get('value'))
             return return_value  #Return the evaluated value
         else:
             return None  # Default return value is nil
    
-    def handle_inputs(self, args):
-        # Handles multiple string inputs from user
-        # if not args or len(args) < 1:  # Ensure at least one prompt is provided
-        #     super().error(ErrorType.NAME_ERROR, "inputs() requires at least one argument")
-
-        user_inputs = []
+    def handle_inputs(self, statement_node):
+        if isinstance(statement_node, list):
+            args = statement_node  # Assuming statement_node is a list of arguments
+        else:
+            args = statement_node.dict.get("args", [])
+        user_inputs = []  # Initialize a list to collect user inputs
         for arg in args:
-            prompt = self.evaluate_expression(arg)  # Evaluate the prompt expression
-            super().output(prompt)  # Print the prompt to the user
+            prompt_str = self.evaluate_expression(arg)  # Evaluate each argument as a prompt
+            super().output(prompt_str)  # Print the prompt to the user
             user_input = super().get_input()  # Get input from user
             user_inputs.append(user_input)  # Collect inputs
 
         return user_inputs  # Return the list of user inputs
+
 
     
     def do_if(self, statement_node):
@@ -420,23 +415,38 @@ class Interpreter(InterpreterBase): # change here for scoping
              
 def main():
     program = """
-                func main() {
-                    var s;
-                    var n;
-                    s = inputs();
-                    n = inputi();
+  func foo(a) {
+  if (a != 1) {
+    if (a != 2) {
+      var i;
+      for (i = 0; i < 15; i = i + 1) {
+        if (i == a) {
+          return "oh";
+        }
+      }
+    }
+  }
+}
 
-                    print(s == n);
-                    print(s == nil);
-                    print(n == nil);
-                    print(s == "1");
+func loop1() {
+  return loop2();
+}
+func loop2() {
+  return loop3();
+}
 
-                    print(s != n);
-                    print(s != nil);
-                    print(n != nil);
-                    print(s != "1");
+func loop3() {
+  return 5;
+}
 
-                    }
+func main() {
+  var a;
+  a = 10;
+  
+  print(foo(a));
+  print(loop1());
+}
+
                  """
 
     interpreter = Interpreter()
