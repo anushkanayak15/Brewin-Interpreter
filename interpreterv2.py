@@ -164,9 +164,11 @@ class Interpreter(InterpreterBase): # change here for scoping
         elif expr_node.elem_type in ['+', '-', '*', '/']:
             left_op = self.evaluate_expression(expr_node.dict.get("op1"))   # Get the first operand
             right_op = self.evaluate_expression(expr_node.dict.get("op2")) # Get the second operand
+            
             # Handling nil values
             if left_op is None or right_op is None:
                 super().error(ErrorType.TYPE_ERROR, "Cannot perform arithmetic operation with nil")
+            
             # Allow string concatenation
             if isinstance(left_op, str) and isinstance(right_op, str):
                 return left_op + right_op
@@ -204,17 +206,25 @@ class Interpreter(InterpreterBase): # change here for scoping
             left_op = self.evaluate_expression(expr_node.dict.get("op1"))
             right_op = self.evaluate_expression(expr_node.dict.get("op2"))
 
+            # If the types of left_op and right_op are not equal, return False for == and !=
+            if type(left_op) != type(right_op):
+                if expr_node.elem_type in ['==']:
+                    return False  # Return False for equality and inequality comparisons
+                else:
+                    return True
+
+
                 # Allow comparisons for equality and inequality across different types
             if expr_node.elem_type == '==':
                 return left_op == right_op
             elif expr_node.elem_type == '!=':
                 return left_op != right_op
             
-                # Allow comparisons involving numbers and strings
-            if isinstance(left_op, str) and isinstance(right_op, (int, bool)):
-                left_op = left_op == str(right_op)
-            elif isinstance(right_op, str) and isinstance(left_op, (int, bool)):
-                right_op = str(right_op) == left_op
+            #     # Allow comparisons involving numbers and strings
+            # if isinstance(left_op, str) and isinstance(right_op, (int, bool)):
+            #     left_op = left_op == str(right_op)
+            # elif isinstance(right_op, str) and isinstance(left_op, (int, bool)):
+            #     right_op = str(right_op) == left_op
 
             if isinstance(left_op, str) or isinstance(right_op, str):
                 super().error(ErrorType.TYPE_ERROR, "Comparisons with strings using <, <=, >, >= are not allowed")
@@ -286,10 +296,9 @@ class Interpreter(InterpreterBase): # change here for scoping
         
         arg_count = len(args)  # Get the number of arguments passed
         key = f"{func_name}_{arg_count}"  # Create the key for the overloaded function
-
         if key not in self.functions:
             super().error(ErrorType.NAME_ERROR, f"Function {func_name} with {arg_count} arguments was not found")
-        
+
         def_func = self.functions[key]  # Retrieve the correct function definition
         def_args = def_func.dict.get('args', [])
         
@@ -303,10 +312,14 @@ class Interpreter(InterpreterBase): # change here for scoping
             self.scopes[-1][param_name] = value  # Assign the evaluated value to the parameter name
 
         statement_list = def_func.dict.get('statements', [])
+        return_value = None  # Initialize return_value
         for statement in statement_list:
-            self.run_statement(statement)  # Execute each statement in the function
+            return_value = self.run_statement(statement)  # Execute each statement in the function
+            if return_value is not None:  # If a return value is encountered, exit the loop
+                break
 
         self.scopes.pop()  # Remove the function scope after execution
+        return return_value  # Return the captured return value
 
 
     def handle_print(self, args):
@@ -415,37 +428,13 @@ class Interpreter(InterpreterBase): # change here for scoping
              
 def main():
     program = """
-  func foo(a) {
-  if (a != 1) {
-    if (a != 2) {
-      var i;
-      for (i = 0; i < 15; i = i + 1) {
-        if (i == a) {
-          return "oh";
-        }
-      }
-    }
-  }
+ func main () {
+  print("1" == 1);
+  print(true == 1);
+
 }
 
-func loop1() {
-  return loop2();
-}
-func loop2() {
-  return loop3();
-}
 
-func loop3() {
-  return 5;
-}
-
-func main() {
-  var a;
-  a = 10;
-  
-  print(foo(a));
-  print(loop1());
-}
 
                  """
 
