@@ -134,23 +134,39 @@ class Interpreter(InterpreterBase): # change here for scoping
         self.scopes[-1][-1][var_name] = None
    
        
+    # def do_assignment(self, statement_node):
+    #     var_name = statement_node.dict.get("name")
+    #     value = self.evaluate_expression(statement_node.dict.get("expression"))
+
+    #     # Check if there are any scopes available
+    #     if not self.scopes:
+    #         super().error(ErrorType.NAME_ERROR, "No scopes available for variable assignment")
+
+    #     # Check all scopes for variable definition
+    #     for inner_stack in reversed(self.scopes):
+    #         if inner_stack and inner_stack[-1]:  # Check if the inner stack is not empty
+    #             if var_name in inner_stack[-1]:  # Check in the current top dictionary of the current stack
+    #                 inner_stack[-1][var_name] = value  # Update variable in the found scope
+    #                 return
+
+    #     super().error(ErrorType.NAME_ERROR, f"Variable {var_name} has not been defined")
     def do_assignment(self, statement_node):
         var_name = statement_node.dict.get("name")
         value = self.evaluate_expression(statement_node.dict.get("expression"))
 
-        # Check if there are any scopes available
-        if not self.scopes:
-            super().error(ErrorType.NAME_ERROR, "No scopes available for variable assignment")
-
-        # Check all scopes for variable definition
-        for inner_stack in reversed(self.scopes):
-            if inner_stack and inner_stack[-1]:  # Check if the inner stack is not empty
-                if var_name in inner_stack[-1]:  # Check in the current top dictionary of the current stack
-                    inner_stack[-1][var_name] = value  # Update variable in the found scope
+        # Traverse from the innermost to outermost scope stack
+        for scope_stack in reversed(self.scopes):
+            if scope_stack:  # Ensure scope_stack is not empty
+                if var_name in scope_stack[-1]:  # If variable is found in any scope
+                    scope_stack[-1][var_name] = value  # Update the variable's value
                     return
-
-        super().error(ErrorType.NAME_ERROR, f"Variable {var_name} has not been defined")
-
+        
+        # If variable is not found, define it in the current (innermost) scope
+        if self.scopes[-1]:  # Ensure there is at least one scope dictionary
+            self.scopes[-1][-1][var_name] = value
+        else:
+            # Add a new dictionary to the current scope stack if empty, then define the variable
+            self.scopes[-1].append({var_name: value})
 
     def evaluate_expression(self, expr_node):
      # Evaluate different tpes of expression nodes
@@ -159,8 +175,9 @@ class Interpreter(InterpreterBase): # change here for scoping
            
             # Find the variable in the current stack or any outer stacks
             for scope in reversed(self.scopes):
-                if var_name in scope[-1]:  # Check in the top dictionary of the current stack
-                    return scope[-1][var_name]
+                if scope and scope[-1]:  # Ensure scope and its top dictionary are not empty
+                    if var_name in scope[-1]:  # Check in the top dictionary of the current stack
+                        return scope[-1][var_name]
             super().error(ErrorType.NAME_ERROR, f"Variable {var_name} has not been defined")
 
 
@@ -317,7 +334,7 @@ class Interpreter(InterpreterBase): # change here for scoping
     def do_func_call(self, func_name, args):
         if func_name == "print":
             self.handle_print(args)  # Directly handle the print function
-            return
+            return None
         
         
         if func_name == "inputs":
@@ -352,7 +369,7 @@ class Interpreter(InterpreterBase): # change here for scoping
                 break
 
         self.scopes.pop()  # Remove the function scope after execution
-        return self.return_value  # Return the captured return value
+        return self.return_value if self.return_value is not None else None  # Return the captured return value
 
 
     def handle_print(self, args):
@@ -400,9 +417,9 @@ class Interpreter(InterpreterBase): # change here for scoping
             #self.scopes.pop()  # Clean up current function's scope before returning
             #return return_value  # Return the evaluated value
         else:
-            self.early_return_flag = True
+            self.return_value = None
         self.early_return_flag = True
-        self.scopes.pop()  # Clean up current function's scope before returning
+        #self.scopes.pop()  # Clean up current function's scope before returning
         #return None  # Default return value is nil
    
     def handle_inputs(self, statement_node):
@@ -463,14 +480,29 @@ class Interpreter(InterpreterBase): # change here for scoping
              
 def main():
     program = """
-func main() {
-  print(fact(5));
+
+  func foo() {
+ print(1);
 }
 
-func fact(n) {
-  if (n <= 1) { return 1; }
-  return n * fact(n-1);
+func bar() {
+ return nil;
 }
+
+func main() {
+ var x;
+ x = foo();
+ if (x == nil) {
+  print(2);
+ }
+ var y;
+ y = bar();
+ if (y == nil) {
+  print(3);
+ }
+ 
+}
+
 
 
                  """
