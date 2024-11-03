@@ -65,38 +65,37 @@ class Interpreter(InterpreterBase): # change here for scoping
             param_name = param.get("name")
             self.scopes[-1][-1][param_name] = None  # Initialize parameters
 
-        # Execute function body
-        self.scopes.append([{}])  # New scope for function body
         statement_list = func_node.dict.get("statements", [])
+        return_value = None
         for statement in statement_list:
             return_value = self.run_statement(statement)
-            if return_value is not None:
-                self.scopes.pop()  # Clean up function body scope
-                self.scopes.pop()  # Clean up function parameter scope
-                return return_value
+            if return_value is not None:  # If a return value is encountered
+                break
 
         self.scopes.pop()  # Clean up function body scope
-        self.scopes.pop()  # Clean up function parameter scope
-        return None
-    # def run_func(self, func_node):
-    #     self.scopes.append([{}])  # Push a new dictionary for the function scope
+        return return_value  # Return the captured return value
 
-    #     # Initialize function parameters in the new scope
+    # def run_func(self, func_node):
+    #     self.scopes.append([{}])  # New scope for function parameters
     #     param_list = func_node.dict.get("params", [])
     #     for param in param_list:
     #         param_name = param.get("name")
-    #         self.scopes[-1][-1][param_name] = None  # Initialize parameters to None
+    #         self.scopes[-1][-1][param_name] = None  # Initialize parameters
 
-    #     # Execute the statements within a function node  
+    #     # Execute function body
+    #     self.scopes.append([{}])  # New scope for function body
     #     statement_list = func_node.dict.get("statements", [])
     #     for statement in statement_list:
     #         return_value = self.run_statement(statement)
-    #         if return_value is not None:  # If a return value is encountered
-    #             self.scopes.pop()  # Clean up the current scope
-    #             return return_value  # Propagate the return value
+    #         if return_value is not None:
+    #             self.scopes.pop()  # Clean up function body scope
+    #             self.scopes.pop()  # Clean up function parameter scope
+    #             return return_value
 
-    #     self.scopes.pop()  # Clean up the scope if no return was encountered
-    #     return None  # Return None if no return value was found
+    #     self.scopes.pop()  # Clean up function body scope
+    #     self.scopes.pop()  # Clean up function parameter scope
+    #     return None
+    
 
 
     #Loop through each statement to process it
@@ -107,10 +106,10 @@ class Interpreter(InterpreterBase): # change here for scoping
             self.do_definition(statement_node)
         elif type =="=": #For assignment
             self.do_assignment(statement_node)
-        elif type =="fcall": # For function call
+        elif type == "fcall":
             func_name = statement_node.dict.get("name")
             args = statement_node.dict.get("args", [])
-            self.do_func_call(func_name, args)
+            return self.do_func_call(func_name, args) 
         elif type == "if":  # For if statements
             self.do_if(statement_node) #helper func for if statement
         elif type == "for":  # For for loops
@@ -135,6 +134,7 @@ class Interpreter(InterpreterBase): # change here for scoping
         #     super().error(ErrorType.NAME_ERROR, f"Duplicate definition for variable {var_name}")
 
         # Add the variable to the current scope and initialize it to None
+        
         self.scopes[-1][-1][var_name] = None
    
        
@@ -231,6 +231,11 @@ class Interpreter(InterpreterBase): # change here for scoping
                 if right_op == 0:  # Prevent division by zero
                     super().error(ErrorType.TYPE_ERROR, "Division by zero is not allowed")
                 return left_op // right_op
+            
+        elif expr_node.elem_type == "fcall":
+            function_name = expr_node.dict.get("name")
+            args = expr_node.dict.get("args", [])
+            return self.do_func_call(function_name, args)
        
         # Handling the comparisons check this implementation:
         elif expr_node.elem_type in ['==', '!=', '<', '<=', '>', '>=']:  # Evaluate binary comparison operations
@@ -396,6 +401,7 @@ class Interpreter(InterpreterBase): # change here for scoping
             return_value = self.evaluate_expression(statement_node.dict.get('value'))
             return return_value  #Return the evaluated value
         else:
+            #self.scopes.pop()
             return None  # Default return value is nil
    
     def handle_inputs(self, statement_node):
@@ -452,14 +458,12 @@ class Interpreter(InterpreterBase): # change here for scoping
 def main():
     program = """
 func main() {
-  var x;
+  print(fact(5));
+}
 
-  for (x=0; x < 2; x = x+1) {
-    var x;
-    x = -1;
-    print(x);
-  }
-  print(x);
+func fact(n) {
+  if (n <= 1) { return 1; }
+  return n * fact(n-1);
 }
 
 
