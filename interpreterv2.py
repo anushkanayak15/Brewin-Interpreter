@@ -102,22 +102,22 @@ class Interpreter(InterpreterBase): # change here for scoping
 
 
 
-    # def do_definition(self, statement_node):
-    #     var_name = statement_node.dict.get("name")  # Get variable name from the dictionary
-
-    #     # If the variable is already in the current scope, we can ignore this declaration
-    #     if var_name in self.scopes[-1]:  # Check in the top dictionary of the current stack
-    #         super().error(ErrorType.NAME_ERROR, f"Duplicate definition for variable {var_name}")
-        
-    #     # Add the variable to the current scope and initialize it to None
-    #     self.scopes[-1][var_name] = None
-            
     def do_definition(self, statement_node):
         var_name = statement_node.dict.get("name")  # Get variable name from the dictionary
 
-        # No need to check for duplicates in nested scopes; simply add the variable
+        # If the variable is already in the current scope, we can ignore this declaration
+        if var_name in self.scopes[-1]:  # Check in the top dictionary of the current stack
+            super().error(ErrorType.NAME_ERROR, f"Duplicate definition for variable {var_name}")
+        
         # Add the variable to the current scope and initialize it to None
-        self.scopes[-1][var_name] = None  # Initialize the variable without error
+        self.scopes[-1][var_name] = None
+            
+    # def do_definition(self, statement_node):
+    #     var_name = statement_node.dict.get("name")  # Get variable name from the dictionary
+
+    #     # No need to check for duplicates in nested scopes; simply add the variable
+    #     # Add the variable to the current scope and initialize it to None
+    #     self.scopes[-1][var_name] = None  # Initialize the variable without error
 
    
        
@@ -274,6 +274,14 @@ class Interpreter(InterpreterBase): # change here for scoping
         if func_name == "print":
             self.handle_print(args)  # Directly handle the print function
             return
+        
+        
+        if func_name == "inputs":
+            return self.handle_inputs(args)
+        
+        if func_name == "inputi":
+            return self.handle_inputi(args)
+        
         arg_count = len(args)  # Get the number of arguments passed
         key = f"{func_name}_{arg_count}"  # Create the key for the overloaded function
 
@@ -311,20 +319,25 @@ class Interpreter(InterpreterBase): # change here for scoping
         super().output(output_str)
 
     def handle_inputi(self, statement_node):
-   
-        user_prompt = statement_node.dict.get("args", [])
-       
-        # If a usedr_prompt is provided, evaluate it
-        if len(user_prompt) > 0:
-            prompt_str = self.evaluate_expression(user_prompt[0])
-            super().output(prompt_str)
+    
+        args = statement_node.get("args", [])
 
+        if len(args) != 1:
+            super().error(ErrorType.NAME_ERROR, "inputi() requires exactly one prompt argument")
+
+        prompt_expr = args[0]  # Take the first argument for the prompt
+        prompt = self.evaluate_expression(prompt_expr)  # Evaluate to get the prompt string
+
+        # Output the prompt to the user
+        super().output(prompt)
 
         # Get input from user
         user_input = super().get_input()
-        # print("user input received:", user_input)
-       
+
+        # Return the converted integer value
         return self.convert_to_integer(user_input)
+
+
 
 
 #convert user input to an integer, handling potential errors
@@ -348,14 +361,19 @@ class Interpreter(InterpreterBase): # change here for scoping
             return None  # Default return value is nil
    
     def handle_inputs(self, args):
-        # Handles string inputs from user
-        if len(args) > 1:  # Check for more than one argument
-            super().error(ErrorType.NAME_ERROR, "No inputs() function found that takes > 1 parameter")
-        user_prompt = ''
-        if args:
-            user_prompt = self.evaluate_expression(args[0])
-            super().output(user_prompt)  # Output the user prompt to the screen
-        return super().get_input()  #Get string input and return it
+        # Handles multiple string inputs from user
+        # if not args or len(args) < 1:  # Ensure at least one prompt is provided
+        #     super().error(ErrorType.NAME_ERROR, "inputs() requires at least one argument")
+
+        user_inputs = []
+        for arg in args:
+            prompt = self.evaluate_expression(arg)  # Evaluate the prompt expression
+            super().output(prompt)  # Print the prompt to the user
+            user_input = super().get_input()  # Get input from user
+            user_inputs.append(user_input)  # Collect inputs
+
+        return user_inputs  # Return the list of user inputs
+
     
     def do_if(self, statement_node):
         condition = self.evaluate_expression(statement_node.dict.get('condition'))
@@ -402,18 +420,23 @@ class Interpreter(InterpreterBase): # change here for scoping
              
 def main():
     program = """
-                func g(){
-                    print(x);
-                }
-
-                func f(){
-                    var x;
-                    x = 4;
-                    g();
-                }
                 func main() {
-                    f();
-                }
+                    var s;
+                    var n;
+                    s = inputs();
+                    n = inputi();
+
+                    print(s == n);
+                    print(s == nil);
+                    print(n == nil);
+                    print(s == "1");
+
+                    print(s != n);
+                    print(s != nil);
+                    print(n != nil);
+                    print(s != "1");
+
+                    }
                  """
 
     interpreter = Interpreter()
