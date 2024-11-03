@@ -84,15 +84,15 @@ class Interpreter(InterpreterBase): # change here for scoping
             self.scopes[-1][-1][param_name] = None  # Initialize parameters
 
         statement_list = func_node.dict.get("statements", [])
-        return_value = None
         self.early_return_flag = False
+        self.return_value = None
         for statement in statement_list:
-            return_value = self.run_statement(statement)
+            self.run_statement(statement)
             if self.early_return_flag:  #Check for early return
                 break
 
         self.scopes.pop()  # Clean up function body scope
-        return return_value  # Return the captured return value
+        return self.return_value  # Return the captured return value
     
     #Loop through each statement to process it
    
@@ -343,15 +343,16 @@ class Interpreter(InterpreterBase): # change here for scoping
             self.scopes[-1][-1][param_name] = value  # Assign the evaluated value to the parameter name
 
         statement_list = def_func.dict.get('statements', [])
-        return_value = None  # Initialize return_value
         self.early_return_flag = False
+        self.return_value = None  # Initialize return_value
+        
         for statement in statement_list:
-            return_value = self.run_statement(statement)  # Execute each statement in the function
+            self.run_statement(statement)  # Execute each statement in the function
             if self.early_return_flag:  # Check for early return
                 break
 
         self.scopes.pop()  # Remove the function scope after execution
-        return return_value  # Return the captured return value
+        return self.return_value  # Return the captured return value
 
 
     def handle_print(self, args):
@@ -394,14 +395,15 @@ class Interpreter(InterpreterBase): # change here for scoping
    
     def do_return(self, statement_node):
         if 'value' in statement_node.dict:
-            return_value = self.evaluate_expression(statement_node.dict.get('value'))
-            self.early_return_flag = True
-            self.scopes.pop()  # Clean up current function's scope before returning
-            return return_value  # Return the evaluated value
+            self.return_value = self.evaluate_expression(statement_node.dict.get('value'))
+            #self.early_return_flag = True
+            #self.scopes.pop()  # Clean up current function's scope before returning
+            #return return_value  # Return the evaluated value
         else:
             self.early_return_flag = True
-            self.scopes.pop()  # Clean up current function's scope before returning
-            return None  # Default return value is nil
+        self.early_return_flag = True
+        self.scopes.pop()  # Clean up current function's scope before returning
+        #return None  # Default return value is nil
    
     def handle_inputs(self, statement_node):
         if isinstance(statement_node, list):
