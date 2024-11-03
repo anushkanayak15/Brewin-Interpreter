@@ -7,10 +7,16 @@
 # The code distinguishes among variable definitions, assignments, and function calls, processing each type accordingly
 # The evaluation mechanism addresses variables, constants, binary operations, and function calls, while ensuring accurate error handling
 
+
+
+
 from intbase import InterpreterBase, ErrorType
 from brewparse import parse_program
 
+
 class Interpreter(InterpreterBase): # change here for scoping
+
+
 
 
     def __init__(self, console_output=True, inp=None, trace_output=False):
@@ -21,6 +27,7 @@ class Interpreter(InterpreterBase): # change here for scoping
         self.functions = {}  #Dictionary to store function
         #self.declared_vars = []  # List to track declared variables for the current scope
         self.early_return_flag = False
+        self.return_value = None
    
     def run(self, program):
         #This is the main method to start executing the program
@@ -43,6 +50,9 @@ class Interpreter(InterpreterBase): # change here for scoping
             self.functions[key] = func  # Store the function definition with the unique key
            
 
+
+
+
     def get_main_func(self, ast):
         function_list = ast.get("functions") #To get the list of functions from the program
         #  Check if there are functions and if the main function is present
@@ -58,10 +68,28 @@ class Interpreter(InterpreterBase): # change here for scoping
         #return function_list[0] #Return the main function
 
 
+    # def run_func(self, func_node):
+    #     self.scopes.append([{}])  # New scope for function parameters
+    #     param_list = func_node.dict.get("params", [])
+    #     for param in param_list:
+    #         param_name = param.get("name")
+    #         self.scopes[-1][-1][param_name] = None  # Initialize parameters
+
+
+    #     statement_list = func_node.dict.get("statements", [])
+    #     return_value = None
+    #     for statement in statement_list:
+    #         return_value = self.run_statement(statement)
+    #         if return_value is not None:  # If a return value is encountered
+    #             break
+
+
+    #     self.scopes.pop()  # Clean up function body scope
+    #     return return_value  # Return the captured return value
+
 
     def run_func(self, func_node):
-        func_scope = {}  # Create a new scope for function param
-        self.scopes.append([func_scope])  # Append the function scope
+        self.scopes.append([{}]) # Create a new scope for function param
         param_list = func_node.dict.get("params", [])
         for param in param_list:
             param_name = param.get("name")
@@ -102,7 +130,6 @@ class Interpreter(InterpreterBase): # change here for scoping
            super().error(ErrorType.NAME_ERROR, f"Invalid statement")
 
 
-
     def do_definition(self, statement_node):
         var_name = statement_node.dict.get("name")  # Get variable name from the dictionary
 
@@ -122,26 +149,34 @@ class Interpreter(InterpreterBase): # change here for scoping
         self.scopes[-1][-1][var_name] = None
    
        
-    
+    # def do_assignment(self, statement_node):
+    #     var_name = statement_node.dict.get("name")
+    #     value = self.evaluate_expression(statement_node.dict.get("expression"))
+
+
+    #     # Check if there are any scopes available
+    #     if not self.scopes:
+    #         super().error(ErrorType.NAME_ERROR, "No scopes available for variable assignment")
+
+
+    #     # Check all scopes for variable definition
+    #     for inner_stack in reversed(self.scopes):
+    #         if inner_stack and inner_stack[-1]:  # Check if the inner stack is not empty
+    #             if var_name in inner_stack[-1]:  # Check in the current top dictionary of the current stack
+    #                 inner_stack[-1][var_name] = value  # Update variable in the found scope
+    #                 return
+
+
+    #     super().error(ErrorType.NAME_ERROR, f"Variable {var_name} has not been defined")
     def do_assignment(self, statement_node):
         var_name = statement_node.dict.get("name")
         value = self.evaluate_expression(statement_node.dict.get("expression"))
-
-
-        # Traverse from the innermost to outermost scope stack
         for scope_stack in reversed(self.scopes):
-            if scope_stack:  # Ensure scope_stack is not empty
-                if var_name in scope_stack[-1]:  # If variable is found in any scope
-                    scope_stack[-1][var_name] = value  # Update the variable's value
+            if scope_stack:
+                if var_name in scope_stack[-1]:
+                    scope_stack[-1][var_name] = value
                     return
-       
-        # If variable is not found, define it in the current (innermost) scope
-        if self.scopes[-1]:  # Ensure there is at least one scope dictionary
-            self.scopes[-1][-1][var_name] = value
-        else:
-            # Add a new dictionary to the current scope stack if empty, then define the variable
-            self.scopes[-1].append({var_name: value})
-
+        self.scopes[-1][-1][var_name] = value
 
     def evaluate_expression(self, expr_node):
      # Evaluate different tpes of expression nodes
@@ -154,9 +189,6 @@ class Interpreter(InterpreterBase): # change here for scoping
                     if var_name in scope[-1]:  # Check in the top dictionary of the current stack
                         return scope[-1][var_name]
             super().error(ErrorType.NAME_ERROR, f"Variable {var_name} has not been defined")
-
-
-
 
         #Evaluate constant nodes for integers
         elif expr_node.elem_type == "int":
@@ -178,6 +210,10 @@ class Interpreter(InterpreterBase): # change here for scoping
                 return -operand  # Return the negated value
             else:
                 super().error(ErrorType.TYPE_ERROR, "Negation operator expects an integer")
+
+
+
+
 
 
         #Evaluate binary operations (addition and subtraction)
@@ -315,11 +351,17 @@ class Interpreter(InterpreterBase): # change here for scoping
                 super().error(ErrorType.TYPE_ERROR, "Invalid operation on non-boolean type")
             return not op
 
+
+
+
         # Evaluate function call expressions
         elif expr_node.elem_type == "fcall":  # Evaluate function call expressions
             function_name = expr_node.dict.get("name")
             args = expr_node.dict.get("args", [])
             return self.do_func_call(function_name, args)  # Pass the function name and args
+
+
+
 
         # Throw error for unsupported expression type
         super().error(ErrorType.TYPE_ERROR, f"Unsupported expression type: {expr_node.elem_type}")
@@ -368,6 +410,9 @@ class Interpreter(InterpreterBase): # change here for scoping
 
         self.scopes.pop()  # Remove the function scope after execution
         return self.return_value if self.return_value is not None else None  # Return the captured return value
+
+
+
 
     def handle_print(self, args):
         #Function to handle function call nodes, print, and input
@@ -435,7 +480,6 @@ class Interpreter(InterpreterBase): # change here for scoping
             user_input = super().get_input()  # Get input from user
             user_inputs.append(user_input)  # Collect inputs
 
-
         return user_inputs  # Return the list of user inputs
 
    
@@ -465,9 +509,6 @@ class Interpreter(InterpreterBase): # change here for scoping
 
 
         self.scopes.pop()  # Remove the scope after executing the if statement
-
-
-
 
     def do_for(self, statement_node):
         self.do_assignment(statement_node.dict.get('init'))  #Execute the initialization statemen
@@ -512,7 +553,7 @@ func main() {
  
 }
 
-                 """
+               """
 
 
     interpreter = Interpreter()
