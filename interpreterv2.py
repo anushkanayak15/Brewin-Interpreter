@@ -149,22 +149,29 @@ class Interpreter(InterpreterBase): # change here for scoping
 
         #Evaluate binary operations (addition and subtraction)
         elif expr_node.elem_type in ['+', '-', '*', '/']:
-
-
             left_op = self.evaluate_expression(expr_node.dict.get("op1"))   # Get the first operand
             right_op = self.evaluate_expression(expr_node.dict.get("op2")) # Get the second operand
             # Handling nil values
             if left_op is None or right_op is None:
                 super().error(ErrorType.TYPE_ERROR, "Cannot perform arithmetic operation with nil")
-            
-            # Ensure compatible types for operations
-            if isinstance(left_op, (int, bool)) and isinstance(right_op, (int, bool)):
-                
-                if isinstance(left_op, bool) or isinstance(right_op, bool):
-                    super().error(ErrorType.TYPE_ERROR, "Cannot perform arithmetic operations with booleans")
+            # Allow string concatenation
+            if isinstance(left_op, str) and isinstance(right_op, str):
+                return left_op + right_op
 
-            elif not isinstance(left_op, int) or not isinstance(right_op, int):
+            # Ensure compatible types for operations
+            if isinstance(left_op, bool) or isinstance(right_op, bool):
+                super().error(ErrorType.TYPE_ERROR, "Cannot perform arithmetic operations with booleans")
+
+            if not isinstance(left_op, (int, str)) or not isinstance(right_op, (int, str)):
                 super().error(ErrorType.TYPE_ERROR, "Incompatible types for arithmetic operation")
+
+            # Ensure compatible types for arithmetic operations
+            if not isinstance(left_op, (int, bool)) or not isinstance(right_op, (int, bool)):
+                super().error(ErrorType.TYPE_ERROR, "Incompatible types for arithmetic operation")
+
+            # Convert booleans to integers if necessary for arithmetic
+            left_op = left_op if isinstance(left_op, int) else int(left_op)
+            right_op = right_op if isinstance(right_op, int) else int(right_op)
 
             # Perform the operation based on the operator
        
@@ -190,11 +197,14 @@ class Interpreter(InterpreterBase): # change here for scoping
             elif expr_node.elem_type == '!=':
                 return left_op != right_op
             
-            # Disallow comparisons involving strings or booleans for other operators
+                # Allow comparisons involving numbers and strings
+            if isinstance(left_op, str) and isinstance(right_op, (int, bool)):
+                left_op = left_op == str(right_op)
+            elif isinstance(right_op, str) and isinstance(left_op, (int, bool)):
+                right_op = str(right_op) == left_op
+
             if isinstance(left_op, str) or isinstance(right_op, str):
                 super().error(ErrorType.TYPE_ERROR, "Comparisons with strings using <, <=, >, >= are not allowed")
-            if isinstance(left_op, bool) or isinstance(right_op, bool):
-                super().error(ErrorType.TYPE_ERROR, "Comparisons with booleans using <, <=, >, >= are not allowed")
 
           
             # Handling nil values in comparisons
@@ -238,11 +248,8 @@ class Interpreter(InterpreterBase): # change here for scoping
             if op is None:
                 super().error(ErrorType.TYPE_ERROR, "Invalid operation on nil value")
 
-
             if not isinstance(op, bool):
                 super().error(ErrorType.TYPE_ERROR, "Invalid operation on non-boolean type")
-
-
             return not op
 
 
