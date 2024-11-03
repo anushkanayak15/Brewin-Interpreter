@@ -89,6 +89,10 @@ class Interpreter(InterpreterBase): # change here for scoping
 
 
     def run_func(self, func_node):
+        # Reset the early_return_flag and return_value at the start of each function call
+        self.early_return_flag = False
+        self.return_value = None
+
         self.scopes.append([{}]) # Create a new scope for function param
         param_list = func_node.dict.get("params", [])
         for param in param_list:
@@ -97,13 +101,11 @@ class Interpreter(InterpreterBase): # change here for scoping
 
 
         statement_list = func_node.dict.get("statements", [])
-        self.early_return_flag = False
-        self.return_value = None
+    
         for statement in statement_list:
             self.run_statement(statement)
             if self.early_return_flag:  #Check for early return
                 break
-
 
         self.scopes.pop()  # Clean up function body scope
         return self.return_value  # Return the captured return value
@@ -487,10 +489,8 @@ class Interpreter(InterpreterBase): # change here for scoping
         condition = self.evaluate_expression(statement_node.dict.get('condition'))
         if not isinstance(condition, bool):  # Ensure the condition evaluates to a boolean
             super().error(ErrorType.TYPE_ERROR, "Condition in if statement must be of bool type")
-        block_scope = dict(self.scopes[-1][-1])
-        # Create a new scope for the statements in the if block
-        self.scopes.append([block_scope]) # Create a new dictionary for the new scope
-
+        
+        self.scopes.append([dict(self.scopes[-1][-1])])  # Create a new scope for the if block
 
         statements = statement_node.dict.get('statements', [])
         else_stm = statement_node.dict.get('else_stm', None)
@@ -523,6 +523,8 @@ class Interpreter(InterpreterBase): # change here for scoping
                 self.run_statement(statement)  # execute the statements within the loop
                 if self.early_return_flag:  # Exit if an early return occurred
                     break
+            if self.early_return_flag:
+                break
             self.do_assignment(statement_node.dict.get('update'))  #Execute the update statement
              
 def main():
