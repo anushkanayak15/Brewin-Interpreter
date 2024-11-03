@@ -17,7 +17,7 @@ class Interpreter(InterpreterBase): # change here for scoping
         super().__init__(console_output, inp)
 # To implement lexical scoping, we will be using stack of stack of dictionaries.
 # Each scope stack will have its own dictionary to hold variable names and values
-        self.scopes = []  # Stack of stacks, each stack contains dictionaries for scopes
+        self.scopes = [[]]  # Stack of stacks, each stack contains dictionaries for scopes
         self.functions = {}  #Dictionary to store function
        
    
@@ -29,12 +29,6 @@ class Interpreter(InterpreterBase): # change here for scoping
         main_func = self.get_main_func(ast)# Retrieve the main function from the AST
         self.run_func(main_func) #Execute the main function
    
-    # def define_functions(self, ast):
-    #     function_list = ast.get("functions")
-    #     for func in function_list:
-    #         func_name = func.get("name")
-    #         print(f"Defining function: {func_name}")
-    #         self.functions[func_name] = func  # Store function definition
     def define_functions(self, ast):
         function_list = ast.get("functions")
         for func in function_list:
@@ -68,13 +62,14 @@ class Interpreter(InterpreterBase): # change here for scoping
 
 
     def run_func(self, func_node):  # Updated for handling nested functions
-        self.scopes.append({})  # Push a new dictionary for the function scope
+        self.scopes.append([])  # Push a new dictionary for the function scope
+        self.scopes[-1].append({})  # Create a new dictionary for the function's scope
        
         # Initialize function parameters in the new scope
         param_list = func_node.dict.get("params", [])  # Get the list of parameters if they exist
         for param in param_list:
             param_name = param.get("name")
-            self.scopes[-1][param_name] = None  # Initialize parameters to None or a default value
+            self.scopes[-1][-1][param_name] = None  # Initialize parameters to None or a default value
 
 
         # Execute the statements within a function node  
@@ -112,24 +107,22 @@ class Interpreter(InterpreterBase): # change here for scoping
     def do_definition(self, statement_node): # made change here for scoping
         var_name = statement_node.dict.get("name") # Get variable name from the dictionary
         # Check if the variable has already been defined in the current scope
-        if var_name in self.scopes[-1]:  # Check in the top dictionary of the current stack
+        if var_name in self.scopes[-1][-1]:  # Check in the top dictionary of the current stack
             super().error(ErrorType.NAME_ERROR, f"Variable {var_name} defined more than once in the same scope")
         else:
-            self.scopes[-1][var_name] = None  # Initialize the variable in the current inner stack
+            self.scopes[-1][-1][var_name] = None  # Initialize the variable in the current inner stack
    
        
 
 
     def do_assignment(self, statement_node):
         var_name = statement_node.dict.get("name")  # Get variable name from the dictionary  
-        for scope in reversed(self.scopes):
-            if var_name in scope:  # Check in the current scope
-                expr_node = statement_node.dict.get("expression")
-                value = self.evaluate_expression(expr_node)  # Evaluate the right-hand side
-                scope[var_name] = value  # Update the variable in the found scope
-                return  # Exit after assignment
-        super().error(ErrorType.NAME_ERROR, f"Variable {var_name} has not been defined")
-
+        if var_name in self.scopes[-1][-1]:
+            expr_node = statement_node.dict.get("expression")
+            value = self.evaluate_expression(expr_node)
+            self.scopes[-1][-1][var_name] = value
+        else:
+            super().error(ErrorType.NAME_ERROR, f"Variable {var_name} has not been defined")
 
     def evaluate_expression(self, expr_node):
      # Evaluate different tpes of expression nodes
@@ -137,7 +130,7 @@ class Interpreter(InterpreterBase): # change here for scoping
             var_name = expr_node.dict.get("name")  # Access the variable name
            
             # Find the variable in the current stack or any outer stacks
-            for scope in reversed(self.scopes):
+            for scope in reversed(self.scopes[-1]):
                 if var_name in scope:  # Check in the top dictionary of the current stack
                     return scope[var_name]
             super().error(ErrorType.NAME_ERROR, f"Variable {var_name} has not been defined")
@@ -264,29 +257,7 @@ class Interpreter(InterpreterBase): # change here for scoping
         # Throw error for unsupported expression type
         super().error(ErrorType.TYPE_ERROR, f"Unsupported expression type: {expr_node.elem_type}")
    
-    # def do_func_call(self, func_name, args):
-    #     if func_name == "print":
-    #         self.handle_print(args)  # Directly handle the print function
-    #         return
-       
-    #     if func_name not in self.functions:
-    #         super().error(ErrorType.NAME_ERROR, f"Function {func_name} was not found")
-    #     def_func = self.functions[func_name]
-    #     def_args = def_func.dict.get('args',[])  
-    #     # Check for correct number of arguments
-    #     if len(args) != len(def_args):
-    #         super().error(ErrorType.NAME_ERROR, f"Function {func_name} takes {len(def_args)} arguments but was called with {len(args)}")
-    #     # Prepare a new local context for parameters
-    #     self.scopes.append({})  # Create a new scope for function parameters
-    #     for i, arg in enumerate(args):
-    #         value = self.evaluate_expression(arg)  # Evaluate the argument expression
-    #         self.scopes[-1][def_args[i].dict.get('name')] = value  # Pass by value
-    #     # Execute the function with its local variable context
-    #     statement_list = def_func.dict.get('statements', [])
-    #     for statement in statement_list:
-    #         self.run_statement(statement)
-
-
+   
     #     self.scopes.pop()  # Remove the function scope after execution
     def do_func_call(self, func_name, args):
         if func_name == "print":
@@ -304,19 +275,17 @@ class Interpreter(InterpreterBase): # change here for scoping
         if len(args) != len(def_args):  # Check for correct number of arguments
             super().error(ErrorType.NAME_ERROR, f"Function {func_name} takes {len(def_args)} arguments but was called with {len(args)}")
 
-        self.scopes.append({})  # Create a new scope for function parameters
+        self.scopes[-1].append({})  # Create a new scope for function parameters
         for i, arg in enumerate(args):
             value = self.evaluate_expression(arg)  # Evaluate the argument expression
             param_name = def_args[i].dict.get('name')
-            self.scopes[-1][param_name] = value  # Assign the evaluated value to the parameter name
+            self.scopes[-1][-1][param_name] = value  # Assign the evaluated value to the parameter name
 
         statement_list = def_func.dict.get('statements', [])
         for statement in statement_list:
             self.run_statement(statement)  # Execute each statement in the function
 
-        self.scopes.pop()  # Remove the function scope after execution
-
-
+        self.scopes[-1].pop()  # Remove the function scope after execution
 
 
     def handle_print(self, args):
