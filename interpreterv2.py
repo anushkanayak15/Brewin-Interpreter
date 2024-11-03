@@ -107,9 +107,9 @@ class Interpreter(InterpreterBase): # change here for scoping
     def do_definition(self, statement_node):
         var_name = statement_node.dict.get("name")  # Get variable name from the dictionary
 
-        # If the variable is already in the current scope, we can ignore this declaration
-        if var_name in self.scopes[-1]:  # Check in the top dictionary of the current stack
-            super().error(ErrorType.NAME_ERROR, f"Duplicate definition for variable {var_name}")
+        # # If the variable is already in the current scope, we can ignore this declaration
+        # if var_name in self.scopes[-1]:  # Check in the top dictionary of the current stack
+        #     super().error(ErrorType.NAME_ERROR, f"Duplicate definition for variable {var_name}")
         
         # Add the variable to the current scope and initialize it to None
         self.scopes[-1][var_name] = None
@@ -428,12 +428,16 @@ class Interpreter(InterpreterBase): # change here for scoping
              
 def main():
     program = """
- func main () {
-  print("1" == 1);
-  print(true == 1);
+func main() {
+  var x;
 
+  for (x=0; x < 2; x = x+1) {
+    var x;
+    x = -1;
+    print(x);
+  }
+  print(x);
 }
-
 
 
                  """
