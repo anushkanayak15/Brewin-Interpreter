@@ -20,7 +20,7 @@ class Interpreter(InterpreterBase): # change here for scoping
         self.scopes = [[]]  # Stack of stacks, each stack contains dictionaries for scopes
         self.functions = {}  #Dictionary to store function
         #self.declared_vars = []  # List to track declared variables for the current scope
-       
+        self.early_return_flag = False
    
     def run(self, program):
         #This is the main method to start executing the program
@@ -58,23 +58,6 @@ class Interpreter(InterpreterBase): # change here for scoping
         super().error(ErrorType.NAME_ERROR, "No main() function was found")
         #return function_list[0] #Return the main function
 
-    def run_func(self, func_node):
-        self.scopes.append([{}])  # New scope for function parameters
-        param_list = func_node.dict.get("params", [])
-        for param in param_list:
-            param_name = param.get("name")
-            self.scopes[-1][-1][param_name] = None  # Initialize parameters
-
-        statement_list = func_node.dict.get("statements", [])
-        return_value = None
-        for statement in statement_list:
-            return_value = self.run_statement(statement)
-            if return_value is not None:  # If a return value is encountered
-                break
-
-        self.scopes.pop()  # Clean up function body scope
-        return return_value  # Return the captured return value
-
     # def run_func(self, func_node):
     #     self.scopes.append([{}])  # New scope for function parameters
     #     param_list = func_node.dict.get("params", [])
@@ -82,22 +65,35 @@ class Interpreter(InterpreterBase): # change here for scoping
     #         param_name = param.get("name")
     #         self.scopes[-1][-1][param_name] = None  # Initialize parameters
 
-    #     # Execute function body
-    #     self.scopes.append([{}])  # New scope for function body
     #     statement_list = func_node.dict.get("statements", [])
+    #     return_value = None
     #     for statement in statement_list:
     #         return_value = self.run_statement(statement)
-    #         if return_value is not None:
-    #             self.scopes.pop()  # Clean up function body scope
-    #             self.scopes.pop()  # Clean up function parameter scope
-    #             return return_value
+    #         if return_value is not None:  # If a return value is encountered
+    #             break
 
     #     self.scopes.pop()  # Clean up function body scope
-    #     self.scopes.pop()  # Clean up function parameter scope
-    #     return None
+    #     return return_value  # Return the captured return value
+
+    def run_func(self, func_node):
+        func_scope = {}  # Create a new scope for function param
+        self.scopes.append([func_scope])  # Append the function scope
+        param_list = func_node.dict.get("params", [])
+        for param in param_list:
+            param_name = param.get("name")
+            self.scopes[-1][-1][param_name] = None  # Initialize parameters
+
+        statement_list = func_node.dict.get("statements", [])
+        return_value = None
+        self.early_return_flag = False
+        for statement in statement_list:
+            return_value = self.run_statement(statement)
+            if self.early_return_flag:  #Check for early return
+                break
+
+        self.scopes.pop()  # Clean up function body scope
+        return return_value  # Return the captured return value
     
-
-
     #Loop through each statement to process it
    
     def run_statement(self, statement_node):
@@ -337,11 +333,10 @@ class Interpreter(InterpreterBase): # change here for scoping
 
         def_func = self.functions[key]  # Retrieve the correct function definition
         def_args = def_func.dict.get('args', [])
-        
         if len(args) != len(def_args):  # Check for correct number of arguments
             super().error(ErrorType.NAME_ERROR, f"Function {func_name} takes {len(def_args)} arguments but was called with {len(args)}")
-
-        self.scopes.append([{}])# Create a new scope for function parameters
+        func_scope = {} 
+        self.scopes.append([func_scope])# Create a new scope for function parameters
         for i, arg in enumerate(args):
             value = self.evaluate_expression(arg)  # Evaluate the argument expression
             param_name = def_args[i].dict.get('name')
@@ -349,9 +344,10 @@ class Interpreter(InterpreterBase): # change here for scoping
 
         statement_list = def_func.dict.get('statements', [])
         return_value = None  # Initialize return_value
+        self.early_return_flag = False
         for statement in statement_list:
             return_value = self.run_statement(statement)  # Execute each statement in the function
-            if return_value is not None:  # If a return value is encountered, exit the loop
+            if self.early_return_flag:  # Check for early return
                 break
 
         self.scopes.pop()  # Remove the function scope after execution
@@ -399,9 +395,12 @@ class Interpreter(InterpreterBase): # change here for scoping
     def do_return(self, statement_node):
         if 'value' in statement_node.dict:
             return_value = self.evaluate_expression(statement_node.dict.get('value'))
-            return return_value  #Return the evaluated value
+            self.early_return_flag = True
+            self.scopes.pop()  # Clean up current function's scope before returning
+            return return_value  # Return the evaluated value
         else:
-            #self.scopes.pop()
+            self.early_return_flag = True
+            self.scopes.pop()  # Clean up current function's scope before returning
             return None  # Default return value is nil
    
     def handle_inputs(self, statement_node):
@@ -424,9 +423,9 @@ class Interpreter(InterpreterBase): # change here for scoping
         condition = self.evaluate_expression(statement_node.dict.get('condition'))
         if not isinstance(condition, bool):  # Ensure the condition evaluates to a boolean
             super().error(ErrorType.TYPE_ERROR, "Condition in if statement must be of bool type")
-
+        block_scope = dict(self.scopes[-1][-1])
         # Create a new scope for the statements in the if block
-        self.scopes.append([{}])  # Create a new dictionary for the new scope
+        self.scopes.append([block_scope]) # Create a new dictionary for the new scope
 
         statements = statement_node.dict.get('statements', [])
         else_stm = statement_node.dict.get('else_stm', None)
@@ -434,9 +433,13 @@ class Interpreter(InterpreterBase): # change here for scoping
         if condition:  # If the condition is true, execute if block
             for statement in statements:
                 self.run_statement(statement)
+                if self.early_return_flag:  # Exit if an early return occurred
+                    break
         elif else_stm:  # If the condition is false & there are else statements, execute the else statements
             for statement in else_stm:
                 self.run_statement(statement)
+                if self.early_return_flag:  # Exit if an early return occurred
+                    break
 
         self.scopes.pop()  # Remove the scope after executing the if statement
 
@@ -452,7 +455,8 @@ class Interpreter(InterpreterBase): # change here for scoping
             statements = statement_node.dict.get('statements', [])
             for statement in statements:
                 self.run_statement(statement)  # execute the statements within the loop
-           
+                if self.early_return_flag:  # Exit if an early return occurred
+                    break
             self.do_assignment(statement_node.dict.get('update'))  #Execute the update statement
              
 def main():
