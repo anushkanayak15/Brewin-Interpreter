@@ -19,6 +19,7 @@ class Interpreter(InterpreterBase): # change here for scoping
 # Each scope stack will have its own dictionary to hold variable names and values
         self.scopes = [{}]  # Stack of stacks, each stack contains dictionaries for scopes
         self.functions = {}  #Dictionary to store function
+        #self.declared_vars = []  # List to track declared variables for the current scope
        
    
     def run(self, program):
@@ -101,13 +102,23 @@ class Interpreter(InterpreterBase): # change here for scoping
 
 
 
-    def do_definition(self, statement_node): # made change here for scoping
-        var_name = statement_node.dict.get("name") # Get variable name from the dictionary
-        # Check if the variable has already been defined in the current scope
-        if var_name in self.scopes[-1]:  # Check in the top dictionary of the current stack
-            super().error(ErrorType.NAME_ERROR, f"Variable {var_name} defined more than once in the same scope")
-        else:
-            self.scopes[-1][var_name] = None  # Initialize the variable in the current inner stack
+    # def do_definition(self, statement_node):
+    #     var_name = statement_node.dict.get("name")  # Get variable name from the dictionary
+
+    #     # If the variable is already in the current scope, we can ignore this declaration
+    #     if var_name in self.scopes[-1]:  # Check in the top dictionary of the current stack
+    #         super().error(ErrorType.NAME_ERROR, f"Duplicate definition for variable {var_name}")
+        
+    #     # Add the variable to the current scope and initialize it to None
+    #     self.scopes[-1][var_name] = None
+            
+    def do_definition(self, statement_node):
+        var_name = statement_node.dict.get("name")  # Get variable name from the dictionary
+
+        # No need to check for duplicates in nested scopes; simply add the variable
+        # Add the variable to the current scope and initialize it to None
+        self.scopes[-1][var_name] = None  # Initialize the variable without error
+
    
        
     def do_assignment(self, statement_node):
@@ -367,28 +378,6 @@ class Interpreter(InterpreterBase): # change here for scoping
         self.scopes.pop()  # Remove the scope after executing the if statement
 
 
-
-    # def do_if(self, statement_node):
-    #     condition = self.evaluate_expression(statement_node.dict.get('condition'))
-    #     if not isinstance(condition, bool):  # Ensure the condition evaluates to a boolean
-    #         super().error(ErrorType.TYPE_ERROR, "Condition in if statement must be of bool type")
-
-
-    #     statements = statement_node.dict.get('statements', [])
-    #     else_stm = statement_node.dict.get('else_stm', None)
-
-
-    #     if condition:  # If the condition is true, execute  if block
-    #         for statement in statements:
-    #             self.run_statement(statement)
-    #     elif else_stm:  # If the condition is false & there are else statements, execute the else statements
-    #         for statement in else_stm:
-    #             self.run_statement(statement)
-       
-
-
-
-
     def do_for(self, statement_node):
         self.do_assignment(statement_node.dict.get('init'))  #Execute the initialization statement
 
@@ -412,23 +401,21 @@ class Interpreter(InterpreterBase): # change here for scoping
             self.do_assignment(statement_node.dict.get('update'))  #Execute the update statement
              
 def main():
-    program = """func f(x) {
-                    return x; // Simple function returning its input
-                 }
+    program = """
+                func g(){
+                    print(x);
+                }
 
-                 func main() {
+                func f(){
                     var x;
-                    x = 10;
-                    if (f(x) > 5) {
-                        print(x);
-                        if (x < 30 && x > 10) {
-                            print(3 * x);
-                        }
-                    } else {
-                        print("x is not greater than 5");
-                    }
-                 }"""
-    
+                    x = 4;
+                    g();
+                }
+                func main() {
+                    f();
+                }
+                 """
+
     interpreter = Interpreter()
     interpreter.run(program)
 
