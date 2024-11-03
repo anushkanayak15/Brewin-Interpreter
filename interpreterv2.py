@@ -13,7 +13,14 @@
 from intbase import InterpreterBase, ErrorType
 from brewparse import parse_program
 
+# Define a custom NIL type
+class NILType:
+    def __init__(self):
+        self.value = None
 
+    def __repr__(self):
+        return "NIL"
+    
 class Interpreter(InterpreterBase): # change here for scoping
 
 
@@ -203,7 +210,7 @@ class Interpreter(InterpreterBase): # change here for scoping
         elif expr_node.elem_type == "bool":  # Evaluate constant nodes for booleans
             return expr_node.dict.get("val")  # Access the boolean value
         elif expr_node.elem_type == "nil":  # Handling for nil
-            return expr_node.dict.get("val")
+            return NILType()
        
         # Evaluate unary negation
         elif expr_node.elem_type == "neg":  # Check for unary negation
@@ -214,19 +221,14 @@ class Interpreter(InterpreterBase): # change here for scoping
                 super().error(ErrorType.TYPE_ERROR, "Negation operator expects an integer")
 
 
-
-
-
-
         #Evaluate binary operations (addition and subtraction)
         elif expr_node.elem_type in ['+', '-', '*', '/']:
             left_op = self.evaluate_expression(expr_node.dict.get("op1"))   # Get the first operand
             right_op = self.evaluate_expression(expr_node.dict.get("op2")) # Get the second operand
            
-            # Handling nil values
-            if left_op is None or right_op is None:
+            if isinstance(left_op, NILType) or isinstance(right_op, NILType):
                 super().error(ErrorType.TYPE_ERROR, "Cannot perform arithmetic operation with nil")
-           
+
             # Allow string concatenation
             if isinstance(left_op, str) and isinstance(right_op, str):
                 return left_op + right_op
@@ -269,52 +271,40 @@ class Interpreter(InterpreterBase): # change here for scoping
             args = expr_node.dict.get("args", [])
             return self.do_func_call(function_name, args)
        
-        # Handling the comparisons check this implementation:
-        elif expr_node.elem_type in ['==', '!=', '<', '<=', '>', '>=']:  # Evaluate binary comparison operations
+        elif expr_node.elem_type in ['==', '!=']:  # Handle equality and inequality comparisons
             left_op = self.evaluate_expression(expr_node.dict.get("op1"))
             right_op = self.evaluate_expression(expr_node.dict.get("op2"))
+            # For equality and inequality, nil comparisons should work correctly
+            if isinstance(left_op, NILType) or isinstance(right_op, NILType):
+                return expr_node.elem_type == '==' if isinstance(left_op, NILType) and isinstance(right_op, NILType) else expr_node.elem_type == '!='
 
+            # If either operand is an instance of NILType, handle accordingly
+            if isinstance(left_op, NILType) or isinstance(right_op, NILType):
+                return expr_node.elem_type == '==' if left_op is right_op else expr_node.elem_type == '!='
 
-            # If the types of left_op and right_op are not equal, return False for == and !=
+            # If the types of left_op and right_op are not equal, return False for == and True for !=
             if type(left_op) != type(right_op):
-                if expr_node.elem_type in ['==']:
-                    return False  # Return False for equality and inequality comparisons
-                else:
-                    return True
+                return expr_node.elem_type == '!='
 
-
-
-
-                # Allow comparisons for equality and inequality across different types
+            # Perform == or != based on the operator
             if expr_node.elem_type == '==':
                 return left_op == right_op
             elif expr_node.elem_type == '!=':
                 return left_op != right_op
-           
-            #     # Allow comparisons involving numbers and strings
-            # if isinstance(left_op, str) and isinstance(right_op, (int, bool)):
-            #     left_op = left_op == str(right_op)
-            # elif isinstance(right_op, str) and isinstance(left_op, (int, bool)):
-            #     right_op = str(right_op) == left_op
 
+        elif expr_node.elem_type in ['<', '<=', '>', '>=']:  # Handle relational comparisons
+            left_op = self.evaluate_expression(expr_node.dict.get("op1"))
+            right_op = self.evaluate_expression(expr_node.dict.get("op2"))
 
+            # Check if either operand is NILType or of different types, which is not allowed for relational comparisons
+            if isinstance(left_op, NILType) or isinstance(right_op, NILType) or type(left_op) != type(right_op):
+                super().error(ErrorType.TYPE_ERROR, "Cannot compare values of different types with <, <=, >, >= operators")
+
+            # Ensure that both operands are not strings
             if isinstance(left_op, str) or isinstance(right_op, str):
                 super().error(ErrorType.TYPE_ERROR, "Comparisons with strings using <, <=, >, >= are not allowed")
 
-
-         
-            # Handling nil values in comparisons
-            if left_op is None and right_op is None:
-                return expr_node.elem_type == '=='  # Both are nil, equal
-            elif left_op is None or right_op is None:
-                return expr_node.elem_type == '!='  # One is nil, the other is not
-
-
-
-
-            if type(left_op) != type(right_op):
-                super().error(ErrorType.TYPE_ERROR, "Cannot compare values of different types with operators other than == or !=")
-           
+            # Perform the relational comparison based on the operator
             if expr_node.elem_type == '<':
                 return left_op < right_op
             elif expr_node.elem_type == '<=':
@@ -326,19 +316,12 @@ class Interpreter(InterpreterBase): # change here for scoping
 
 
 
-
         elif expr_node.elem_type in ['&&', '||']:  # Evaluate logical binary operations
             left_op = self.evaluate_expression(expr_node.dict.get("op1"))
             right_op = self.evaluate_expression(expr_node.dict.get("op2"))
 
-
-
-
             if not isinstance(left_op, bool) or not isinstance(right_op, bool):
                 super().error(ErrorType.TYPE_ERROR, "Incompatible types for logical operation")
-
-
-
 
             return left_op and right_op if expr_node.elem_type == '&&' else left_op or right_op
 
@@ -465,7 +448,7 @@ class Interpreter(InterpreterBase): # change here for scoping
             #self.scopes.pop()  # Clean up current function's scope before returning
             #return return_value  # Return the evaluated value
         else:
-            self.return_value = None
+            self.return_value = NILType()
         self.early_return_flag = True
         #self.scopes.pop()  # Clean up current function's scope before returning
         #return None  # Default return value is nil
