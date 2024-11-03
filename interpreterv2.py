@@ -58,26 +58,45 @@ class Interpreter(InterpreterBase): # change here for scoping
         super().error(ErrorType.NAME_ERROR, "No main() function was found")
         #return function_list[0] #Return the main function
 
-
     def run_func(self, func_node):
-        self.scopes.append([{}])  # Push a new dictionary for the function scope
-
-        # Initialize function parameters in the new scope
+        self.scopes.append([{}])  # New scope for function parameters
         param_list = func_node.dict.get("params", [])
         for param in param_list:
             param_name = param.get("name")
-            self.scopes[-1][-1][param_name] = None  # Initialize parameters to None
+            self.scopes[-1][-1][param_name] = None  # Initialize parameters
 
-        # Execute the statements within a function node  
+        # Execute function body
+        self.scopes.append([{}])  # New scope for function body
         statement_list = func_node.dict.get("statements", [])
         for statement in statement_list:
             return_value = self.run_statement(statement)
-            if return_value is not None:  # If a return value is encountered
-                self.scopes.pop()  # Clean up the current scope
-                return return_value  # Propagate the return value
+            if return_value is not None:
+                self.scopes.pop()  # Clean up function body scope
+                self.scopes.pop()  # Clean up function parameter scope
+                return return_value
 
-        self.scopes.pop()  # Clean up the scope if no return was encountered
-        return None  # Return None if no return value was found
+        self.scopes.pop()  # Clean up function body scope
+        self.scopes.pop()  # Clean up function parameter scope
+        return None
+    # def run_func(self, func_node):
+    #     self.scopes.append([{}])  # Push a new dictionary for the function scope
+
+    #     # Initialize function parameters in the new scope
+    #     param_list = func_node.dict.get("params", [])
+    #     for param in param_list:
+    #         param_name = param.get("name")
+    #         self.scopes[-1][-1][param_name] = None  # Initialize parameters to None
+
+    #     # Execute the statements within a function node  
+    #     statement_list = func_node.dict.get("statements", [])
+    #     for statement in statement_list:
+    #         return_value = self.run_statement(statement)
+    #         if return_value is not None:  # If a return value is encountered
+    #             self.scopes.pop()  # Clean up the current scope
+    #             return return_value  # Propagate the return value
+
+    #     self.scopes.pop()  # Clean up the scope if no return was encountered
+    #     return None  # Return None if no return value was found
 
 
     #Loop through each statement to process it
@@ -111,20 +130,12 @@ class Interpreter(InterpreterBase): # change here for scoping
         if not self.scopes or not self.scopes[-1]:
             super().error(ErrorType.NAME_ERROR, "No current scope to define variable")
 
-        # Check in the current top dictionary of the stack for duplicates
-        if var_name in self.scopes[-1][-1]:  
-            super().error(ErrorType.NAME_ERROR, f"Duplicate definition for variable {var_name}")
+        # # Check in the current top dictionary of the stack for duplicates
+        # if var_name in self.scopes[-1][-1]:  
+        #     super().error(ErrorType.NAME_ERROR, f"Duplicate definition for variable {var_name}")
 
         # Add the variable to the current scope and initialize it to None
         self.scopes[-1][-1][var_name] = None
-            
-    # def do_definition(self, statement_node):
-    #     var_name = statement_node.dict.get("name")  # Get variable name from the dictionary
-
-    #     # No need to check for duplicates in nested scopes; simply add the variable
-    #     # Add the variable to the current scope and initialize it to None
-    #     self.scopes[-1][var_name] = None  # Initialize the variable without error
-
    
        
     def do_assignment(self, statement_node):
@@ -169,6 +180,15 @@ class Interpreter(InterpreterBase): # change here for scoping
             return expr_node.dict.get("val")  # Access the boolean value
         elif expr_node.elem_type == "nil":  # Handling for nil
             return expr_node.dict.get("val")
+        
+        # Evaluate unary negation
+        elif expr_node.elem_type == "neg":  # Check for unary negation
+            operand = self.evaluate_expression(expr_node.dict.get("op1"))  # Evaluate the operand
+            if isinstance(operand, int):
+                return -operand  # Return the negated value
+            else:
+                super().error(ErrorType.TYPE_ERROR, "Negation operator expects an integer")
+
 
 
         #Evaluate binary operations (addition and subtraction)
@@ -416,21 +436,13 @@ class Interpreter(InterpreterBase): # change here for scoping
 
 
     def do_for(self, statement_node):
-        self.do_assignment(statement_node.dict.get('init'))  #Execute the initialization statement
-
-
+        self.do_assignment(statement_node.dict.get('init'))  #Execute the initialization statemen
         while True:
             condition = self.evaluate_expression(statement_node.dict.get('condition'))
-
-
             if not isinstance(condition, bool):  #Ensure the condition evaluates to a boolean
                 super().error(ErrorType.TYPE_ERROR, "Condition in loops must be of bool type")
-
-
             if not condition:  #if condition is false  exit the loop
                 break
-
-
             statements = statement_node.dict.get('statements', [])
             for statement in statements:
                 self.run_statement(statement)  # execute the statements within the loop
