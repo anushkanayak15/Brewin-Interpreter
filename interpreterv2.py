@@ -17,7 +17,7 @@ class Interpreter(InterpreterBase): # change here for scoping
         super().__init__(console_output, inp)
 # To implement lexical scoping, we will be using stack of stack of dictionaries.
 # Each scope stack will have its own dictionary to hold variable names and values
-        self.scopes = [{}]  # Stack of stacks, each stack contains dictionaries for scopes
+        self.scopes = [[]]  # Stack of stacks, each stack contains dictionaries for scopes
         self.functions = {}  #Dictionary to store function
         #self.declared_vars = []  # List to track declared variables for the current scope
        
@@ -60,13 +60,13 @@ class Interpreter(InterpreterBase): # change here for scoping
 
 
     def run_func(self, func_node):
-        self.scopes.append({})  # Push a new dictionary for the function scope
+        self.scopes.append([{}])  # Push a new dictionary for the function scope
 
         # Initialize function parameters in the new scope
         param_list = func_node.dict.get("params", [])
         for param in param_list:
             param_name = param.get("name")
-            self.scopes[-1][param_name] = None  # Initialize parameters to None
+            self.scopes[-1][-1][param_name] = None  # Initialize parameters to None
 
         # Execute the statements within a function node  
         statement_list = func_node.dict.get("statements", [])
@@ -107,12 +107,16 @@ class Interpreter(InterpreterBase): # change here for scoping
     def do_definition(self, statement_node):
         var_name = statement_node.dict.get("name")  # Get variable name from the dictionary
 
-        # # If the variable is already in the current scope, we can ignore this declaration
-        # if var_name in self.scopes[-1]:  # Check in the top dictionary of the current stack
-        #     super().error(ErrorType.NAME_ERROR, f"Duplicate definition for variable {var_name}")
-        
+        # Check if there is a current scope to define the variable
+        if not self.scopes or not self.scopes[-1]:
+            super().error(ErrorType.NAME_ERROR, "No current scope to define variable")
+
+        # Check in the current top dictionary of the stack for duplicates
+        if var_name in self.scopes[-1][-1]:  
+            super().error(ErrorType.NAME_ERROR, f"Duplicate definition for variable {var_name}")
+
         # Add the variable to the current scope and initialize it to None
-        self.scopes[-1][var_name] = None
+        self.scopes[-1][-1][var_name] = None
             
     # def do_definition(self, statement_node):
     #     var_name = statement_node.dict.get("name")  # Get variable name from the dictionary
@@ -127,12 +131,19 @@ class Interpreter(InterpreterBase): # change here for scoping
         var_name = statement_node.dict.get("name")
         value = self.evaluate_expression(statement_node.dict.get("expression"))
 
+        # Check if there are any scopes available
+        if not self.scopes:
+            super().error(ErrorType.NAME_ERROR, "No scopes available for variable assignment")
+
         # Check all scopes for variable definition
-        for scope in reversed(self.scopes):
-            if var_name in scope:
-                scope[var_name] = value  # Update variable in the found scope
-                return
+        for inner_stack in reversed(self.scopes):
+            if inner_stack and inner_stack[-1]:  # Check if the inner stack is not empty
+                if var_name in inner_stack[-1]:  # Check in the current top dictionary of the current stack
+                    inner_stack[-1][var_name] = value  # Update variable in the found scope
+                    return
+
         super().error(ErrorType.NAME_ERROR, f"Variable {var_name} has not been defined")
+
 
     def evaluate_expression(self, expr_node):
      # Evaluate different tpes of expression nodes
@@ -141,8 +152,8 @@ class Interpreter(InterpreterBase): # change here for scoping
            
             # Find the variable in the current stack or any outer stacks
             for scope in reversed(self.scopes):
-                if var_name in scope:  # Check in the top dictionary of the current stack
-                    return scope[var_name]
+                if var_name in scope[-1]:  # Check in the top dictionary of the current stack
+                    return scope[-1][var_name]
             super().error(ErrorType.NAME_ERROR, f"Variable {var_name} has not been defined")
 
 
@@ -305,11 +316,11 @@ class Interpreter(InterpreterBase): # change here for scoping
         if len(args) != len(def_args):  # Check for correct number of arguments
             super().error(ErrorType.NAME_ERROR, f"Function {func_name} takes {len(def_args)} arguments but was called with {len(args)}")
 
-        self.scopes.append({})  # Create a new scope for function parameters
+        self.scopes.append([{}])# Create a new scope for function parameters
         for i, arg in enumerate(args):
             value = self.evaluate_expression(arg)  # Evaluate the argument expression
             param_name = def_args[i].dict.get('name')
-            self.scopes[-1][param_name] = value  # Assign the evaluated value to the parameter name
+            self.scopes[-1][-1][param_name] = value  # Assign the evaluated value to the parameter name
 
         statement_list = def_func.dict.get('statements', [])
         return_value = None  # Initialize return_value
@@ -389,7 +400,7 @@ class Interpreter(InterpreterBase): # change here for scoping
             super().error(ErrorType.TYPE_ERROR, "Condition in if statement must be of bool type")
 
         # Create a new scope for the statements in the if block
-        self.scopes.append({})  # Create a new dictionary for the new scope
+        self.scopes.append([{}])  # Create a new dictionary for the new scope
 
         statements = statement_node.dict.get('statements', [])
         else_stm = statement_node.dict.get('else_stm', None)
