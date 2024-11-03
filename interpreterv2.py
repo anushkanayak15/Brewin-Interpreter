@@ -110,8 +110,6 @@ class Interpreter(InterpreterBase): # change here for scoping
             self.scopes[-1][var_name] = None  # Initialize the variable in the current inner stack
    
        
-
-
     def do_assignment(self, statement_node):
         var_name = statement_node.dict.get("name")
         value = self.evaluate_expression(statement_node.dict.get("expression"))
@@ -344,26 +342,45 @@ class Interpreter(InterpreterBase): # change here for scoping
             user_prompt = self.evaluate_expression(args[0])
             super().output(user_prompt)  # Output the user prompt to the screen
         return super().get_input()  #Get string input and return it
-
-
+    
     def do_if(self, statement_node):
         condition = self.evaluate_expression(statement_node.dict.get('condition'))
-
-
         if not isinstance(condition, bool):  # Ensure the condition evaluates to a boolean
             super().error(ErrorType.TYPE_ERROR, "Condition in if statement must be of bool type")
 
+        # Create a new scope for the statements in the if block
+        self.scopes.append({})  # Create a new dictionary for the new scope
 
         statements = statement_node.dict.get('statements', [])
         else_stm = statement_node.dict.get('else_stm', None)
 
-
-        if condition:  # If the condition is true, execute  if block
+        if condition:  # If the condition is true, execute if block
             for statement in statements:
                 self.run_statement(statement)
         elif else_stm:  # If the condition is false & there are else statements, execute the else statements
             for statement in else_stm:
                 self.run_statement(statement)
+
+        self.scopes.pop()  # Remove the scope after executing the if statement
+
+
+
+    # def do_if(self, statement_node):
+    #     condition = self.evaluate_expression(statement_node.dict.get('condition'))
+    #     if not isinstance(condition, bool):  # Ensure the condition evaluates to a boolean
+    #         super().error(ErrorType.TYPE_ERROR, "Condition in if statement must be of bool type")
+
+
+    #     statements = statement_node.dict.get('statements', [])
+    #     else_stm = statement_node.dict.get('else_stm', None)
+
+
+    #     if condition:  # If the condition is true, execute  if block
+    #         for statement in statements:
+    #             self.run_statement(statement)
+    #     elif else_stm:  # If the condition is false & there are else statements, execute the else statements
+    #         for statement in else_stm:
+    #             self.run_statement(statement)
        
 
 
