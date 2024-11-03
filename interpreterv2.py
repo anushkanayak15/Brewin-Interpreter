@@ -331,45 +331,91 @@ class Interpreter(InterpreterBase): # change here for scoping
    
    
     #     self.scopes.pop()  # Remove the function scope after execution
+
     def do_func_call(self, func_name, args):
+    # Directly handle the built-in 'print' function to return None
         if func_name == "print":
-            self.handle_print(args)  # Directly handle the print function
-            return None
-        
-        
+            self.handle_print(args)
+            return None  # Ensure 'print' returns None
         if func_name == "inputs":
             return self.handle_inputs(args)
         
         if func_name == "inputi":
             return self.handle_inputi(args)
-        
-        arg_count = len(args)  # Get the number of arguments passed
-        key = f"{func_name}_{arg_count}"  # Create the key for the overloaded function
+
+        # Determine the correct function based on its name and number of arguments
+        arg_count = len(args)
+        key = f"{func_name}_{arg_count}"
         if key not in self.functions:
             super().error(ErrorType.NAME_ERROR, f"Function {func_name} with {arg_count} arguments was not found")
 
-        def_func = self.functions[key]  # Retrieve the correct function definition
-        def_args = def_func.dict.get('args', [])
-        if len(args) != len(def_args):  # Check for correct number of arguments
-            super().error(ErrorType.NAME_ERROR, f"Function {func_name} takes {len(def_args)} arguments but was called with {len(args)}")
-        func_scope = {} 
-        self.scopes.append([func_scope])# Create a new scope for function parameters
-        for i, arg in enumerate(args):
-            value = self.evaluate_expression(arg)  # Evaluate the argument expression
-            param_name = def_args[i].dict.get('name')
-            self.scopes[-1][-1][param_name] = value  # Assign the evaluated value to the parameter name
+        # Retrieve the function and prepare a new scope for it
+        def_func = self.functions[key]
+        func_scope = {}
+        self.scopes.append([func_scope])  # Append the function scope to the stack
 
-        statement_list = def_func.dict.get('statements', [])
+        # Set up the function arguments in the new scope
+        def_args = def_func.dict.get('args', [])
+        for i, arg in enumerate(args):
+            value = self.evaluate_expression(arg)
+            param_name = def_args[i].dict.get('name')
+            self.scopes[-1][-1][param_name] = value
+
+        # Execute the function body and capture any return value
+        statement_list = def_func.dict.get("statements", [])
         self.early_return_flag = False
-        self.return_value = None  # Initialize return_value
-        
+        self.return_value = None  # Reset the return value
+
         for statement in statement_list:
-            self.run_statement(statement)  # Execute each statement in the function
-            if self.early_return_flag:  # Check for early return
+            self.run_statement(statement)
+            if self.early_return_flag:  # Check if a return was encountered
                 break
 
-        self.scopes.pop()  # Remove the function scope after execution
-        return self.return_value if self.return_value is not None else None  # Return the captured return value
+        # Remove the function scope after execution
+        self.scopes.pop()
+        
+        # Return the captured return value (default to None if not set)
+        return self.return_value if self.return_value is not None else None
+    
+    # def do_func_call(self, func_name, args):
+    #     if func_name == "print":
+    #         self.handle_print(args)  # Directly handle the print function
+    #         return None
+        
+        
+    #     if func_name == "inputs":
+    #         return self.handle_inputs(args)
+        
+    #     if func_name == "inputi":
+    #         return self.handle_inputi(args)
+        
+    #     arg_count = len(args)  # Get the number of arguments passed
+    #     key = f"{func_name}_{arg_count}"  # Create the key for the overloaded function
+    #     if key not in self.functions:
+    #         super().error(ErrorType.NAME_ERROR, f"Function {func_name} with {arg_count} arguments was not found")
+
+    #     def_func = self.functions[key]  # Retrieve the correct function definition
+    #     def_args = def_func.dict.get('args', [])
+    #     if len(args) != len(def_args):  # Check for correct number of arguments
+    #         super().error(ErrorType.NAME_ERROR, f"Function {func_name} takes {len(def_args)} arguments but was called with {len(args)}")
+    #     func_scope = {} 
+    #     self.scopes.append([func_scope])# Create a new scope for function parameters
+    #     for i, arg in enumerate(args):
+    #         value = self.evaluate_expression(arg)  # Evaluate the argument expression
+    #         param_name = def_args[i].dict.get('name')
+    #         self.scopes[-1][-1][param_name] = value  # Assign the evaluated value to the parameter name
+
+    #     statement_list = def_func.dict.get('statements', [])
+    #     self.early_return_flag = False
+    #     self.return_value = None  # Initialize return_value
+        
+    #     for statement in statement_list:
+    #         self.run_statement(statement)  # Execute each statement in the function
+    #         if self.early_return_flag:  # Check for early return
+    #             break
+
+    #     self.scopes.pop()  # Remove the function scope after execution
+    #     return self.return_value if self.return_value is not None else None  # Return the captured return value
 
 
     def handle_print(self, args):
@@ -481,28 +527,19 @@ class Interpreter(InterpreterBase): # change here for scoping
 def main():
     program = """
 
-  func foo() {
- print(1);
-}
-
-func bar() {
- return nil;
+  func foo(c) { 
+  if (c == 10) {
+    return 5;
+  }
+  else {
+    return 3;
+  }
 }
 
 func main() {
- var x;
- x = foo();
- if (x == nil) {
-  print(2);
- }
- var y;
- y = bar();
- if (y == nil) {
-  print(3);
- }
- 
+  print(foo(10));
+  print(foo(11));
 }
-
 
 
                  """
