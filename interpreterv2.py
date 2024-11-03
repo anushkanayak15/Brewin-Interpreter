@@ -152,16 +152,18 @@ class Interpreter(InterpreterBase): # change here for scoping
 
 
             left_op = self.evaluate_expression(expr_node.dict.get("op1"))   # Get the first operand
-           
             right_op = self.evaluate_expression(expr_node.dict.get("op2")) # Get the second operand
             # Handling nil values
             if left_op is None or right_op is None:
                 super().error(ErrorType.TYPE_ERROR, "Cannot perform arithmetic operation with nil")
             
             # Ensure compatible types for operations
-            if isinstance(left_op, str) and isinstance(right_op, str) and expr_node.elem_type == '+':
-                return left_op + right_op  # String concatenation
-            if not isinstance(left_op, int) or not isinstance(right_op, int):
+            if isinstance(left_op, (int, bool)) and isinstance(right_op, (int, bool)):
+                
+                if isinstance(left_op, bool) or isinstance(right_op, bool):
+                    super().error(ErrorType.TYPE_ERROR, "Cannot perform arithmetic operations with booleans")
+
+            elif not isinstance(left_op, int) or not isinstance(right_op, int):
                 super().error(ErrorType.TYPE_ERROR, "Incompatible types for arithmetic operation")
 
             # Perform the operation based on the operator
