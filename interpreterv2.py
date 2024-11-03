@@ -192,7 +192,19 @@ class Interpreter(InterpreterBase): # change here for scoping
             left_op = self.evaluate_expression(expr_node.dict.get("op1"))
             right_op = self.evaluate_expression(expr_node.dict.get("op2"))
 
+                # Allow comparisons for equality and inequality across different types
+            if expr_node.elem_type == '==':
+                return left_op == right_op
+            elif expr_node.elem_type == '!=':
+                return left_op != right_op
+            
+            # Disallow comparisons involving strings or booleans for other operators
+            if isinstance(left_op, str) or isinstance(right_op, str):
+                super().error(ErrorType.TYPE_ERROR, "Comparisons with strings using <, <=, >, >= are not allowed")
+            if isinstance(left_op, bool) or isinstance(right_op, bool):
+                super().error(ErrorType.TYPE_ERROR, "Comparisons with booleans using <, <=, >, >= are not allowed")
 
+          
             # Handling nil values in comparisons
             if left_op is None and right_op is None:
                 return expr_node.elem_type == '=='  # Both are nil, equal
@@ -200,23 +212,10 @@ class Interpreter(InterpreterBase): # change here for scoping
                 return expr_node.elem_type == '!='  # One is nil, the other is not
 
 
-            # # Type checking for comparisons
-            # if type(left_op) != type(right_op):
-            #     if isinstance(left_op, (int, bool)) and isinstance(right_op, (int, bool)):
-            #         return left_op == right_op if expr_node.elem_type == '==' else left_op != right_op
-            #     else:
-            #         super().error(ErrorType.TYPE_ERROR, "Incompatible types for comparison")
-            # Type checking for comparisons
             if type(left_op) != type(right_op):
                 super().error(ErrorType.TYPE_ERROR, "Cannot compare values of different types with operators other than == or !=")
-
-
-
-            if expr_node.elem_type == '==':
-                return left_op == right_op
-            elif expr_node.elem_type == '!=':
-                return left_op != right_op
-            elif expr_node.elem_type == '<':
+            
+            if expr_node.elem_type == '<':
                 return left_op < right_op
             elif expr_node.elem_type == '<=':
                 return left_op <= right_op
