@@ -144,7 +144,7 @@ class Interpreter(InterpreterBase): # change here for scoping
         elif expr_node.elem_type == "bool":  # Evaluate constant nodes for booleans
             return expr_node.dict.get("val")  # Access the boolean value
         elif expr_node.elem_type == "nil":  # Handling for nil
-            return None  # Represent nil as None (or a similar representation)
+            return expr_node.dict.get("val")
 
 
         #Evaluate binary operations (addition and subtraction)
@@ -230,10 +230,6 @@ class Interpreter(InterpreterBase): # change here for scoping
         elif expr_node.elem_type in ['&&', '||']:  # Evaluate logical binary operations
             left_op = self.evaluate_expression(expr_node.dict.get("op1"))
             right_op = self.evaluate_expression(expr_node.dict.get("op2"))
-           
-            # Handling nil values in logical operations
-            if left_op is None or right_op is None:
-                super().error(ErrorType.TYPE_ERROR, "Cannot perform logical operation with nil")
 
 
             if not isinstance(left_op, bool) or not isinstance(right_op, bool):
@@ -245,8 +241,6 @@ class Interpreter(InterpreterBase): # change here for scoping
 
         elif expr_node.elem_type == '!':  # Evaluate unary logical operation
             op = self.evaluate_expression(expr_node.dict.get("op1"))
-            if op is None:
-                super().error(ErrorType.TYPE_ERROR, "Invalid operation on nil value")
 
             if not isinstance(op, bool):
                 super().error(ErrorType.TYPE_ERROR, "Invalid operation on non-boolean type")
