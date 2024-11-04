@@ -1,3 +1,5 @@
+
+
 # Anushka Nayak (605977416)
 
 
@@ -12,19 +14,12 @@
 
 from intbase import InterpreterBase, ErrorType
 from brewparse import parse_program
+class Return(Exception):
+    def __init__(self, value):
+        super().__init__()
+        self.value = value
 
-# Define a custom NIL type
-class NILType:
-    def __init__(self):
-        self.value = None
-
-    def __repr__(self):
-        return "NIL"
-    
 class Interpreter(InterpreterBase): # change here for scoping
-
-
-
 
     def __init__(self, console_output=True, inp=None, trace_output=False):
         super().__init__(console_output, inp)
@@ -34,7 +29,6 @@ class Interpreter(InterpreterBase): # change here for scoping
         self.functions = {}  #Dictionary to store function
         #self.declared_vars = []  # List to track declared variables for the current scope
         self.early_return_flag = False
-        self.return_value = None
    
     def run(self, program):
         #This is the main method to start executing the program
@@ -96,11 +90,8 @@ class Interpreter(InterpreterBase): # change here for scoping
 
 
     def run_func(self, func_node):
-        # Reset the early_return_flag and return_value at the start of each function call
-        self.early_return_flag = False
-        self.return_value = None
-
-        self.scopes.append([{}]) # Create a new scope for function param
+        func_scope = {}  # Create a new scope for function param
+        self.scopes.append([func_scope])  # Append the function scope
         param_list = func_node.dict.get("params", [])
         for param in param_list:
             param_name = param.get("name")
@@ -108,11 +99,13 @@ class Interpreter(InterpreterBase): # change here for scoping
 
 
         statement_list = func_node.dict.get("statements", [])
-    
+        self.early_return_flag = False
+        self.return_value = None
         for statement in statement_list:
             self.run_statement(statement)
             if self.early_return_flag:  #Check for early return
                 break
+
 
         self.scopes.pop()  # Clean up function body scope
         return self.return_value  # Return the captured return value
@@ -137,6 +130,12 @@ class Interpreter(InterpreterBase): # change here for scoping
             return self.do_return(statement_node)      
         else:
            super().error(ErrorType.NAME_ERROR, f"Invalid statement")
+
+
+
+
+
+
 
 
     def do_definition(self, statement_node):
@@ -180,12 +179,22 @@ class Interpreter(InterpreterBase): # change here for scoping
     def do_assignment(self, statement_node):
         var_name = statement_node.dict.get("name")
         value = self.evaluate_expression(statement_node.dict.get("expression"))
+
+
+        # Traverse from the innermost to outermost scope stack
         for scope_stack in reversed(self.scopes):
-            if scope_stack:
-                if var_name in scope_stack[-1]:
-                    scope_stack[-1][var_name] = value
+            if scope_stack:  # Ensure scope_stack is not empty
+                if var_name in scope_stack[-1]:  # If variable is found in any scope
+                    scope_stack[-1][var_name] = value  # Update the variable's value
                     return
-        self.scopes[-1][-1][var_name] = value
+       
+        # If variable is not found, define it in the current (innermost) scope
+        if self.scopes[-1]:  # Ensure there is at least one scope dictionary
+            self.scopes[-1][-1][var_name] = value
+        else:
+            # Add a new dictionary to the current scope stack if empty, then define the variable
+            self.scopes[-1].append({var_name: value})
+
 
     def evaluate_expression(self, expr_node):
      # Evaluate different tpes of expression nodes
@@ -199,6 +208,9 @@ class Interpreter(InterpreterBase): # change here for scoping
                         return scope[-1][var_name]
             super().error(ErrorType.NAME_ERROR, f"Variable {var_name} has not been defined")
 
+
+
+
         #Evaluate constant nodes for integers
         elif expr_node.elem_type == "int":
             #print("evaluating integer constant:", expr_node.dict.get("val"))
@@ -210,7 +222,7 @@ class Interpreter(InterpreterBase): # change here for scoping
         elif expr_node.elem_type == "bool":  # Evaluate constant nodes for booleans
             return expr_node.dict.get("val")  # Access the boolean value
         elif expr_node.elem_type == "nil":  # Handling for nil
-            return NILType()
+            return expr_node.dict.get("val")
        
         # Evaluate unary negation
         elif expr_node.elem_type == "neg":  # Check for unary negation
@@ -221,14 +233,19 @@ class Interpreter(InterpreterBase): # change here for scoping
                 super().error(ErrorType.TYPE_ERROR, "Negation operator expects an integer")
 
 
+
+
+
+
         #Evaluate binary operations (addition and subtraction)
         elif expr_node.elem_type in ['+', '-', '*', '/']:
             left_op = self.evaluate_expression(expr_node.dict.get("op1"))   # Get the first operand
             right_op = self.evaluate_expression(expr_node.dict.get("op2")) # Get the second operand
            
-            if isinstance(left_op, NILType) or isinstance(right_op, NILType):
+            # Handling nil values
+            if left_op is None or right_op is None:
                 super().error(ErrorType.TYPE_ERROR, "Cannot perform arithmetic operation with nil")
-
+           
             # Allow string concatenation
             if isinstance(left_op, str) and isinstance(right_op, str):
                 return left_op + right_op
@@ -271,40 +288,52 @@ class Interpreter(InterpreterBase): # change here for scoping
             args = expr_node.dict.get("args", [])
             return self.do_func_call(function_name, args)
        
-        elif expr_node.elem_type in ['==', '!=']:  # Handle equality and inequality comparisons
+        # Handling the comparisons check this implementation:
+        elif expr_node.elem_type in ['==', '!=', '<', '<=', '>', '>=']:  # Evaluate binary comparison operations
             left_op = self.evaluate_expression(expr_node.dict.get("op1"))
             right_op = self.evaluate_expression(expr_node.dict.get("op2"))
-            # For equality and inequality, nil comparisons should work correctly
-            if isinstance(left_op, NILType) or isinstance(right_op, NILType):
-                return expr_node.elem_type == '==' if isinstance(left_op, NILType) and isinstance(right_op, NILType) else expr_node.elem_type == '!='
 
-            # If either operand is an instance of NILType, handle accordingly
-            if isinstance(left_op, NILType) or isinstance(right_op, NILType):
-                return expr_node.elem_type == '==' if left_op is right_op else expr_node.elem_type == '!='
 
-            # If the types of left_op and right_op are not equal, return False for == and True for !=
+            # If the types of left_op and right_op are not equal, return False for == and !=
             if type(left_op) != type(right_op):
-                return expr_node.elem_type == '!='
+                if expr_node.elem_type in ['==']:
+                    return False  # Return False for equality and inequality comparisons
+                else:
+                    return True
 
-            # Perform == or != based on the operator
+
+
+
+                # Allow comparisons for equality and inequality across different types
             if expr_node.elem_type == '==':
                 return left_op == right_op
             elif expr_node.elem_type == '!=':
                 return left_op != right_op
+           
+            #     # Allow comparisons involving numbers and strings
+            # if isinstance(left_op, str) and isinstance(right_op, (int, bool)):
+            #     left_op = left_op == str(right_op)
+            # elif isinstance(right_op, str) and isinstance(left_op, (int, bool)):
+            #     right_op = str(right_op) == left_op
 
-        elif expr_node.elem_type in ['<', '<=', '>', '>=']:  # Handle relational comparisons
-            left_op = self.evaluate_expression(expr_node.dict.get("op1"))
-            right_op = self.evaluate_expression(expr_node.dict.get("op2"))
 
-            # Check if either operand is NILType or of different types, which is not allowed for relational comparisons
-            if isinstance(left_op, NILType) or isinstance(right_op, NILType) or type(left_op) != type(right_op):
-                super().error(ErrorType.TYPE_ERROR, "Cannot compare values of different types with <, <=, >, >= operators")
-
-            # Ensure that both operands are not strings
             if isinstance(left_op, str) or isinstance(right_op, str):
                 super().error(ErrorType.TYPE_ERROR, "Comparisons with strings using <, <=, >, >= are not allowed")
 
-            # Perform the relational comparison based on the operator
+
+         
+            # Handling nil values in comparisons
+            if left_op is None and right_op is None:
+                return expr_node.elem_type == '=='  # Both are nil, equal
+            elif left_op is None or right_op is None:
+                return expr_node.elem_type == '!='  # One is nil, the other is not
+
+
+
+
+            if type(left_op) != type(right_op):
+                super().error(ErrorType.TYPE_ERROR, "Cannot compare values of different types with operators other than == or !=")
+           
             if expr_node.elem_type == '<':
                 return left_op < right_op
             elif expr_node.elem_type == '<=':
@@ -316,12 +345,19 @@ class Interpreter(InterpreterBase): # change here for scoping
 
 
 
+
         elif expr_node.elem_type in ['&&', '||']:  # Evaluate logical binary operations
             left_op = self.evaluate_expression(expr_node.dict.get("op1"))
             right_op = self.evaluate_expression(expr_node.dict.get("op2"))
 
+
+
+
             if not isinstance(left_op, bool) or not isinstance(right_op, bool):
                 super().error(ErrorType.TYPE_ERROR, "Incompatible types for logical operation")
+
+
+
 
             return left_op and right_op if expr_node.elem_type == '&&' else left_op or right_op
 
@@ -357,8 +393,6 @@ class Interpreter(InterpreterBase): # change here for scoping
         if func_name == "print":
             self.handle_print(args)  # Directly handle the print function
             return None
-       
-       
         if func_name == "inputs":
             return self.handle_inputs(args)
        
@@ -382,20 +416,17 @@ class Interpreter(InterpreterBase): # change here for scoping
             param_name = def_args[i].dict.get('name')
             self.scopes[-1][-1][param_name] = value  # Assign the evaluated value to the parameter name
 
-
+        return_value = None
         statement_list = def_func.dict.get('statements', [])
-        self.early_return_flag = False
-        self.return_value = None  # Initialize return_value
-       
-        for statement in statement_list:
-            self.run_statement(statement)  # Execute each statement in the function
-            if self.early_return_flag:  # Check for early return
-                break
+        try:
+            for statement in statement_list:
+                self.run_statement(statement)
+        except Return as ret:
+            return_value = ret.value  # Capture return value
+        finally:
+            self.scopes.pop()  # Clean up function scope
 
-
-        self.scopes.pop()  # Remove the function scope after execution
-        return self.return_value if self.return_value is not None else None  # Return the captured return value
-
+        return return_value if return_value is not None else None
 
 
 
@@ -443,13 +474,13 @@ class Interpreter(InterpreterBase): # change here for scoping
    
     def do_return(self, statement_node):
         if 'value' in statement_node.dict:
-            self.return_value = self.evaluate_expression(statement_node.dict.get('value'))
+            return_value = self.evaluate_expression(statement_node.dict.get('value'))
             #self.early_return_flag = True
             #self.scopes.pop()  # Clean up current function's scope before returning
             #return return_value  # Return the evaluated value
         else:
-            self.return_value = NILType()
-        self.early_return_flag = True
+            return_value = None
+        raise Return(return_value)
         #self.scopes.pop()  # Clean up current function's scope before returning
         #return None  # Default return value is nil
    
@@ -465,6 +496,7 @@ class Interpreter(InterpreterBase): # change here for scoping
             user_input = super().get_input()  # Get input from user
             user_inputs.append(user_input)  # Collect inputs
 
+
         return user_inputs  # Return the list of user inputs
 
    
@@ -472,8 +504,10 @@ class Interpreter(InterpreterBase): # change here for scoping
         condition = self.evaluate_expression(statement_node.dict.get('condition'))
         if not isinstance(condition, bool):  # Ensure the condition evaluates to a boolean
             super().error(ErrorType.TYPE_ERROR, "Condition in if statement must be of bool type")
-        
-        self.scopes.append([dict(self.scopes[-1][-1])])  # Create a new scope for the if block
+        block_scope = dict(self.scopes[-1][-1])
+        # Create a new scope for the statements in the if block
+        self.scopes.append([block_scope]) # Create a new dictionary for the new scope
+
 
         statements = statement_node.dict.get('statements', [])
         else_stm = statement_node.dict.get('else_stm', None)
@@ -493,6 +527,9 @@ class Interpreter(InterpreterBase): # change here for scoping
 
         self.scopes.pop()  # Remove the scope after executing the if statement
 
+
+
+
     def do_for(self, statement_node):
         self.do_assignment(statement_node.dict.get('init'))  #Execute the initialization statemen
         while True:
@@ -506,8 +543,6 @@ class Interpreter(InterpreterBase): # change here for scoping
                 self.run_statement(statement)  # execute the statements within the loop
                 if self.early_return_flag:  # Exit if an early return occurred
                     break
-            if self.early_return_flag:
-                break
             self.do_assignment(statement_node.dict.get('update'))  #Execute the update statement
              
 def main():
@@ -538,7 +573,8 @@ func main() {
  
 }
 
-               """
+
+                 """
 
 
     interpreter = Interpreter()
