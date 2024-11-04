@@ -140,13 +140,13 @@ class Interpreter(InterpreterBase): # change here for scoping
         elif expr_node.elem_type == "nil":  # Handling for nil
             return expr_node.dict.get("val")
        
-        #unary negation
-        elif expr_node.elem_type == "neg":  # Check for unary negation
-            operand = self.evaluate_expression(expr_node.dict.get("op1"))  # Evaluate the operand
-            if isinstance(operand, int):
-                return -operand  # Return the negated value
-            else:
-                super().error(ErrorType.TYPE_ERROR, "Negation operator expects an integer")
+        # Unary negation
+        elif expr_node.elem_type == "neg":  
+            op1 = expr_node.dict.get("op1")
+            operand = self.evaluate_expression(op1)     
+            if type(operand) is not int:
+                super().error(ErrorType.TYPE_ERROR, "Negation operator expects an integer")  
+            return -operand 
 
         #Evaluate binary operations 
         elif expr_node.elem_type in ['+', '-', '*', '/']:
@@ -405,19 +405,10 @@ class Interpreter(InterpreterBase): # change here for scoping
 def main():
     program = """
 
-func foo(c) { 
-  if (c == 10) {
-    return 5;
-  }
-  else {
-    return 3;
-  }
+func main() {
+  print(-true);
 }
 
-func main() {
-  print(foo(10));
-  print(foo(11));
-}
                  """
 
 
