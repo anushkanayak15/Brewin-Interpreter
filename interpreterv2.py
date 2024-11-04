@@ -1,13 +1,4 @@
-
-
 # Anushka Nayak (605977416)
-
-
-# The Interpreter class initializes variables and prepares to run the program
-# The run method serves as the starting point for executing a Brewin program, transforming it into an ast and executing the main function
-# The interpreter verifies the existence of the main function and executes its statements in order
-# The code distinguishes among variable definitions, assignments, and function calls, processing each type accordingly
-# The evaluation mechanism addresses variables, constants, binary operations, and function calls, while ensuring accurate error handling
 
 from intbase import InterpreterBase, ErrorType
 from brewparse import parse_program
@@ -20,11 +11,11 @@ class Interpreter(InterpreterBase): # change here for scoping
 
     def __init__(self, console_output=True, inp=None, trace_output=False):
         super().__init__(console_output, inp)
-# To implement lexical scoping, we will be using stack of stack of dictionaries.
+# To implement lexical scoping, we will be using stack of stack of dictionaries
 # Each scope stack will have its own dictionary to hold variable names and values
-        self.scopes = [{}]  # Stack of stacks, each stack contains dictionaries for scopes
+        self.scopes = []  
         self.functions = {}  #Dictionary to store function
-        #self.declared_vars = []  # List to track declared variables for the current scope
+        #self.declared_vars = []  
         #self.early_return_flag = False
    
     def run(self, program):
@@ -32,7 +23,7 @@ class Interpreter(InterpreterBase): # change here for scoping
         ast = parse_program(program) # Parse the program into an AST
         # print("parsed the program into AST:", ast)
         self.define_functions(ast)  #Define all functions in the program
-        main_func = self.get_main_func(ast)# Retrieve the main function from the AST
+        main_func = self.get_main_func(ast)#Retrieve the main function from the AST
         self.run_func(main_func) #Execute the main function
    
     def define_functions(self, ast):
@@ -62,38 +53,24 @@ class Interpreter(InterpreterBase): # change here for scoping
         #return function_list[0] #Return the main function
 
 
-    # def run_func(self, func_node):
-    #     func_scope = {}  # Create a new scope for function param
-    #     self.scopes.append(func_scope)  # Append the function scope
-    #     param_list = func_node.dict.get("params", [])
-    #     for param in param_list:
-    #         param_name = param.get("name")
-    #         self.scopes[-1][param_name] = None  # Initialize parameters
-
-
-    #     statement_list = func_node.dict.get("statements", [])
-    #     #self.early_return_flag = False
-    #     try:
-    #         for statement in statement_list:
-    #             self.run_statement(statement)
-    #     except Return as ret:
-    #         return ret.value  # Capture the return value
-    #     finally:
-    #         self.scopes.pop()
-    
     def run_func(self, func_node):
-        # Prepare a new scope for the function and add its parameters
+        func_scope = {}  # Create a new scope for function param
+        self.scopes.append(func_scope)  
+        param_list = func_node.dict.get("params", [])
+        for param in param_list:
+            param_name = param.get("name")
+            self.scopes[-1][param_name] = None  
+
+
         statement_list = func_node.dict.get("statements", [])
+        #self.early_return_flag = False
         try:
-            # Loop through each statement in the function
             for statement in statement_list:
-                result = self.run_statement(statement)
-                if result is not None:  # Capture the return value immediately
-                    return result
+                self.run_statement(statement)
         except Return as ret:
-            # Return the captured return value
-            return ret.value
-        
+            return ret.value  # Capture the return value
+        finally:
+            self.scopes.pop()
     #Loop through each statement to process it
    
     def run_statement(self, statement_node):
@@ -163,7 +140,7 @@ class Interpreter(InterpreterBase): # change here for scoping
         elif expr_node.elem_type == "nil":  # Handling for nil
             return expr_node.dict.get("val")
        
-        # Evaluate unary negation
+        #unary negation
         elif expr_node.elem_type == "neg":  # Check for unary negation
             operand = self.evaluate_expression(expr_node.dict.get("op1"))  # Evaluate the operand
             if isinstance(operand, int):
@@ -171,7 +148,7 @@ class Interpreter(InterpreterBase): # change here for scoping
             else:
                 super().error(ErrorType.TYPE_ERROR, "Negation operator expects an integer")
 
-        #Evaluate binary operations (addition and subtraction)
+        #Evaluate binary operations 
         elif expr_node.elem_type in ['+', '-', '*', '/']:
             left_op = self.evaluate_expression(expr_node.dict.get("op1"))   # Get the first operand
             right_op = self.evaluate_expression(expr_node.dict.get("op2")) # Get the second operand
@@ -179,25 +156,18 @@ class Interpreter(InterpreterBase): # change here for scoping
             # Handling nil values
             if left_op is None or right_op is None:
                 super().error(ErrorType.TYPE_ERROR, "Cannot perform arithmetic operation with nil")
-           
-            # Allow string concatenation
+            #  string concatenation
             if isinstance(left_op, str) and isinstance(right_op, str):
                 return left_op + right_op
-
-
             # Ensure compatible types for operations
             if isinstance(left_op, bool) or isinstance(right_op, bool):
                 super().error(ErrorType.TYPE_ERROR, "Cannot perform arithmetic operations with booleans")
-
-
             if not isinstance(left_op, (int, str)) or not isinstance(right_op, (int, str)):
                 super().error(ErrorType.TYPE_ERROR, "Incompatible types for arithmetic operation")
-
 
             # Ensure compatible types for arithmetic operations
             if not isinstance(left_op, (int, bool)) or not isinstance(right_op, (int, bool)):
                 super().error(ErrorType.TYPE_ERROR, "Incompatible types for arithmetic operation")
-
 
             # Convert booleans to integers if necessary for arithmetic
             left_op = left_op if isinstance(left_op, int) else int(left_op)
@@ -213,7 +183,7 @@ class Interpreter(InterpreterBase): # change here for scoping
             elif expr_node.elem_type == '*':
                 return left_op * right_op
             elif expr_node.elem_type == '/':
-                if right_op == 0:  # Prevent division by zero
+                if right_op == 0:  
                     super().error(ErrorType.TYPE_ERROR, "Division by zero is not allowed")
                 return left_op // right_op
            
@@ -226,44 +196,27 @@ class Interpreter(InterpreterBase): # change here for scoping
         elif expr_node.elem_type in ['==', '!=', '<', '<=', '>', '>=']:  # Evaluate binary comparison operations
             left_op = self.evaluate_expression(expr_node.dict.get("op1"))
             right_op = self.evaluate_expression(expr_node.dict.get("op2"))
-
-
             # If the types of left_op and right_op are not equal, return False for == and !=
             if type(left_op) != type(right_op):
                 if expr_node.elem_type in ['==']:
-                    return False  # Return False for equality and inequality comparisons
+                    return False  
                 else:
                     return True
 
-
-
-
-                # Allow comparisons for equality and inequality across different types
+            # comparisons for equality and inequality across different types
             if expr_node.elem_type == '==':
                 return left_op == right_op
             elif expr_node.elem_type == '!=':
                 return left_op != right_op
            
-            #     # Allow comparisons involving numbers and strings
-            # if isinstance(left_op, str) and isinstance(right_op, (int, bool)):
-            #     left_op = left_op == str(right_op)
-            # elif isinstance(right_op, str) and isinstance(left_op, (int, bool)):
-            #     right_op = str(right_op) == left_op
-
-
             if isinstance(left_op, str) or isinstance(right_op, str):
                 super().error(ErrorType.TYPE_ERROR, "Comparisons with strings using <, <=, >, >= are not allowed")
 
-
-         
             # Handling nil values in comparisons
             if left_op is None and right_op is None:
-                return expr_node.elem_type == '=='  # Both are nil, equal
+                return expr_node.elem_type == '=='  
             elif left_op is None or right_op is None:
-                return expr_node.elem_type == '!='  # One is nil, the other is not
-
-
-
+                return expr_node.elem_type == '!='  
 
             if type(left_op) != type(right_op):
                 super().error(ErrorType.TYPE_ERROR, "Cannot compare values of different types with operators other than == or !=")
@@ -277,124 +230,67 @@ class Interpreter(InterpreterBase): # change here for scoping
             elif expr_node.elem_type == '>=':
                 return left_op >= right_op
 
-
-
-
-        elif expr_node.elem_type in ['&&', '||']:  # Evaluate logical binary operations
+        elif expr_node.elem_type in ['&&', '||']:    # Eval logical binary operations
             left_op = self.evaluate_expression(expr_node.dict.get("op1"))
             right_op = self.evaluate_expression(expr_node.dict.get("op2"))
-
-
-
 
             if not isinstance(left_op, bool) or not isinstance(right_op, bool):
                 super().error(ErrorType.TYPE_ERROR, "Incompatible types for logical operation")
 
-
-
-
             return left_op and right_op if expr_node.elem_type == '&&' else left_op or right_op
 
-
-
-
-        elif expr_node.elem_type == '!':  # Evaluate unary logical operation
+        elif expr_node.elem_type == '!':  #Eval unary logical operation
             op = self.evaluate_expression(expr_node.dict.get("op1"))
-
 
             if not isinstance(op, bool):
                 super().error(ErrorType.TYPE_ERROR, "Invalid operation on non-boolean type")
             return not op
 
-
-
-
-        # Evaluate function call expressions
+        # Eval function call expressions
         elif expr_node.elem_type == "fcall":  # Evaluate function call expressions
             function_name = expr_node.dict.get("name")
             args = expr_node.dict.get("args", [])
             return self.do_func_call(function_name, args)  # Pass the function name and args
 
-
-
-
-        # Throw error for unsupported expression type
         super().error(ErrorType.TYPE_ERROR, f"Unsupported expression type: {expr_node.elem_type}")
    
-   
     #     self.scopes.pop()  # Remove the function scope after execution
-
     def do_func_call(self, func_name, args):
-        # Special case for built-in functions like print
         if func_name == "print":
-            self.handle_print(args)
+            self.handle_print(args)  
             return None
         if func_name == "inputs":
             return self.handle_inputs(args)
+       
         if func_name == "inputi":
             return self.handle_inputi(args)
-
-        # Determine the correct function based on name and argument count
-        arg_count = len(args)
-        key = f"{func_name}_{arg_count}"
+        arg_count = len(args)  
+        key = f"{func_name}_{arg_count}"  
         if key not in self.functions:
             super().error(ErrorType.NAME_ERROR, f"Function {func_name} with {arg_count} arguments was not found")
-
-        # Fetch the function's definition
         func_def = self.functions[key]
-
-        # Evaluate each argument and prepare the function's parameter scope
         func_scope = {}
-        for i, arg in enumerate(args):
-            param_name = func_def.dict.get('args', [])[i].dict.get('name')
-            func_scope[param_name] = self.evaluate_expression(arg)
-        
-        # Push the new scope for the function call
         self.scopes.append(func_scope)
+
+        for i, arg in enumerate(args):
+            value = self.evaluate_expression(arg)
+            param_name = func_def.dict.get('args', [])[i].dict.get('name')
+            self.scopes[-1][param_name] = value
+
+        return_value = None
         try:
-            # Execute the function's statements and handle any returns
-            return self.run_func(func_def)
+            for statement in func_def.dict.get('statements', []):
+                result = self.run_statement(statement)
+                # If a return value is found in a statement, break early
+                if result is not None:
+                    return_value = result
+                    break
+        except Return as ret:
+            return_value = ret.value
         finally:
-            # Ensure the scope is removed after execution
             self.scopes.pop()
-    # def do_func_call(self, func_name, args):
-    #     if func_name == "print":
-    #         self.handle_print(args)  # Directly handle the print function
-    #         return None
-    #     if func_name == "inputs":
-    #         return self.handle_inputs(args)
-       
-    #     if func_name == "inputi":
-    #         return self.handle_inputi(args)
-       
-    #     arg_count = len(args)  # Get the number of arguments passed
-    #     key = f"{func_name}_{arg_count}"  # Create the key for the overloaded function
-    #     if key not in self.functions:
-    #         super().error(ErrorType.NAME_ERROR, f"Function {func_name} with {arg_count} arguments was not found")
-
-
-    #     func_def = self.functions[key]
-    #     func_scope = {}
-    #     self.scopes.append(func_scope)
-
-    #     for i, arg in enumerate(args):
-    #         value = self.evaluate_expression(arg)
-    #         param_name = func_def.dict.get('args', [])[i].dict.get('name')
-    #         self.scopes[-1][param_name] = value
-
-    #     return_value = None
-    #     try:
-    #         for statement in func_def.dict.get('statements', []):
-    #             self.run_statement(statement)
-    #     except Return as ret:
-    #         return_value = ret.value
-    #     finally:
-    #         self.scopes.pop()
-        
-    #     return return_value if return_value is not None else None
-
-
-
+        return return_value if return_value is not None else None
+    
     def handle_print(self, args):
         #Function to handle function call nodes, print, and input
         evaluated_args = [self.evaluate_expression(arg) for arg in args]
@@ -405,7 +301,6 @@ class Interpreter(InterpreterBase): # change here for scoping
             else:
                 output_str += str(arg)  # Convert other types to string
         super().output(output_str)
-
 
     def handle_inputi(self, statement_node):
     # Check if statement_node is indeed a list (which it seems to be)
@@ -418,27 +313,23 @@ class Interpreter(InterpreterBase): # change here for scoping
         if len(args) > 0:
             prompt_str = self.evaluate_expression(args[0])  # Evaluate the first argument as the prompt
             super().output(prompt_str)
-
-
         # Get input from user
         user_input = super().get_input()
-       
         return self.convert_to_integer(user_input)  # Convert and return the user input
     
     def handle_inputs(self, statement_node):
         if isinstance(statement_node, list):
-            args = statement_node  # Assuming statement_node is a list of arguments
+            args = statement_node  #Assuming statement_node is a list of arguments
         else:
             args = statement_node.dict.get("args", [])
-        user_inputs = []  # Initialize a list to collect user inputs
+        user_inputs = [] #Initialize a list to collect user inputs
         for arg in args:
-            prompt_str = self.evaluate_expression(arg)  # Evaluate each argument as a prompt
-            super().output(prompt_str)  # Print the prompt to the user
-            user_input = super().get_input()  # Get input from user
-            user_inputs.append(user_input)  # Collect inputs
+            prompt_str = self.evaluate_expression(arg)  
+            super().output(prompt_str)  
+            user_input = super().get_input()  
+            user_inputs.append(user_input) 
 
-
-        return user_inputs  # Return the list of user inputs
+        return user_inputs 
 
 #convert user input to an integer, handling potential errors
     def convert_to_integer(self, user_input):
@@ -465,96 +356,88 @@ class Interpreter(InterpreterBase): # change here for scoping
     def do_if(self, statement_node):
         # Evaluate the condition of the if statement
         condition = self.evaluate_expression(statement_node.dict.get('condition'))
-        
-        # Ensure the condition evaluates to a boolean
+        #Ensure the condition evaluates to a boolean
         if not isinstance(condition, bool):
             super().error(ErrorType.TYPE_ERROR, "Condition in if statement must be of bool type")
-
-        # Get the statements for the "if" and "else" blocks
+        #the statements for the "if" and "else" blocks
         if_statements = statement_node.dict.get('statements', [])
         else_statements = statement_node.dict.get('else_stm', [])
 
         # Execute the "if" block if the condition is True
         if condition:
-            self.scopes.append({})  # Create a new scope for the if block
+            self.scopes.append({})  
             try:
-                for statement in if_statements:
+                for statement in if_statements :
                     result = self.run_statement(statement)
-                    if result is not None:  # If a statement returns a value, return it immediately
+                    if result is not None:  
                         return result
-            except Return as ret:
-                self.scopes.pop()  # Clean up scope on early return
+            except Return as ret :
+                self.scopes.pop()  
                 raise ret
             finally:
-                self.scopes.pop()  # Remove the scope after executing the if block
+                self.scopes.pop()  
 
         # Execute the "else" block if the condition is False
         elif else_statements:
-            self.scopes.append({})  # Create a new scope for the else block
+            self.scopes.append({})  
             try:
                 for statement in else_statements:
                     result = self.run_statement(statement)
-                    if result is not None:  # If a statement returns a value, return it immediately
-                        return result
+                    if result is not None:  
+                        return  result
             except Return as ret:
-                self.scopes.pop()  # Clean up scope on early return
+                self.scopes.pop()  
                 raise ret
             finally:
-                self.scopes.pop()  # Remove the scope after executing the else block
-
+                self.scopes.pop()  
         # No value to return if no statements return a value
         return None
 
 
 
     def do_for(self, statement_node):
-        # Initialize the loop variable
         self.do_assignment(statement_node.dict.get('init'))
 
         # Loop until the condition is False
         while True:
-            # Evaluate the condition
             condition = self.evaluate_expression(statement_node.dict.get('condition'))
-            if not isinstance(condition, bool):  # Ensure the condition evaluates to a boolean
+            if not isinstance(condition, bool):  #Ensure the condition evaluates to a boolean
                 super().error(ErrorType.TYPE_ERROR, "Condition in for loop must be of bool type")
-            if not condition:  # Exit the loop if the condition is False
+            if not condition: #Exit the loop if the condition is False
                 break
 
             # Execute the loop body
-            self.scopes.append({})  # Create a new scope for the loop iteration
+            self.scopes.append({})  
             try:
                 for statement in statement_node.dict.get('statements', []):
                     self.run_statement(statement)
             except Return as ret:
-                self.scopes.pop()  # Clean up scope on early return
+                self.scopes.pop()  
                 raise ret
-            self.scopes.pop()  # Remove the scope after each iteration
-
+            self.scopes.pop()  
             # Execute the update statement
             self.do_assignment(statement_node.dict.get('update'))
         
-def main():
-    program = """
+# def main():
+#     program = """
 
-func foo(a) {
-  print(a);
-}
+# func foo(a) {
+#   print(a);
+# }
 
-func foo(a,b) {
-  print(a," ",b);
-}
+# func foo(a,b) {
+#   print(a," ",b);
+# }
 
-func main() {
-  foo(5);
-  foo(6,7);
-}
-
-
-                 """
+# func main() {
+#   foo(5);
+#   foo(6,7);
+# }
+#                  """
 
 
-    interpreter = Interpreter()
-    interpreter.run(program)
+#     interpreter = Interpreter()
+#     interpreter.run(program)
 
-if __name__ == "__main__":
-    main()
+# if __name__ == "__main__":
+#     main()
