@@ -193,7 +193,7 @@ class Interpreter(InterpreterBase): # change here for scoping
             return self.do_func_call(function_name, args)
        
         # Handling the comparisons check this implementation:
-        elif expr_node.elem_type in ['==', '!=', '<', '<=', '>', '>=']:  # Evaluate binary comparison operations
+        elif expr_node.elem_type in ['==', '!=']:
             left_op = self.evaluate_expression(expr_node.dict.get("op1"))
             right_op = self.evaluate_expression(expr_node.dict.get("op2"))
             # If the types of left_op and right_op are not equal, return False for == and !=
@@ -202,33 +202,40 @@ class Interpreter(InterpreterBase): # change here for scoping
                     return False  
                 else:
                     return True
-
             # comparisons for equality and inequality across different types
             if expr_node.elem_type == '==':
                 return left_op == right_op
             elif expr_node.elem_type == '!=':
                 return left_op != right_op
+
+
+        elif expr_node.elem_type in ['<', '<=', '>', '>=']:  # Evaluate binary comparison operations
+            left_op = self.evaluate_expression(expr_node.dict.get("op1"))
+            right_op = self.evaluate_expression(expr_node.dict.get("op2"))
            
-            if isinstance(left_op, str) or isinstance(right_op, str):
-                super().error(ErrorType.TYPE_ERROR, "Comparisons with strings using <, <=, >, >= are not allowed")
+            # Check if left_op is an integer; if not, raise an error
+            if not isinstance(left_op, int):
+                super().error(ErrorType.TYPE_ERROR, "Left operand must be an integer for comparison")
+
+            # Check if right_op is an integer; if not, raise an error
+            if not isinstance(right_op, int):
+                super().error(ErrorType.TYPE_ERROR, "Right operand must be an integer for comparison")
 
             # Handling nil values in comparisons
             if left_op is None and right_op is None:
                 return expr_node.elem_type == '=='  
             elif left_op is None or right_op is None:
                 return expr_node.elem_type == '!='  
-
-            if type(left_op) != type(right_op):
-                super().error(ErrorType.TYPE_ERROR, "Cannot compare values of different types with operators other than == or !=")
-           
-            if expr_node.elem_type == '<':
-                return left_op < right_op
-            elif expr_node.elem_type == '<=':
-                return left_op <= right_op
-            elif expr_node.elem_type == '>':
-                return left_op > right_op
-            elif expr_node.elem_type == '>=':
-                return left_op >= right_op
+            
+            else: 
+                if expr_node.elem_type == '<':
+                    return left_op < right_op
+                elif expr_node.elem_type == '<=':
+                    return left_op <= right_op
+                elif expr_node.elem_type == '>':
+                    return left_op > right_op
+                elif expr_node.elem_type == '>=':
+                    return left_op >= right_op
 
         elif expr_node.elem_type in ['&&', '||']:    # Eval logical binary operations
             left_op = self.evaluate_expression(expr_node.dict.get("op1"))
@@ -406,9 +413,10 @@ def main():
     program = """
 
 func main() {
-  print(-true);
+  if (5 > "hi") {
+    print("wow");
+  }
 }
-
                  """
 
 
