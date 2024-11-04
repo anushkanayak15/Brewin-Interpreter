@@ -362,38 +362,22 @@ class Interpreter(InterpreterBase): # change here for scoping
         #the statements for the "if" and "else" blocks
         if_statements = statement_node.dict.get('statements', [])
         else_statements = statement_node.dict.get('else_stm', [])
-
-        # Execute the "if" block if the condition is True
-        if condition:
-            self.scopes.append({})  
-            try:
-                for statement in if_statements :
+        # Create a local scope for `if` and `else` blocks
+        self.scopes.append({})
+        try:
+            if condition:
+                for statement in if_statements:
                     result = self.run_statement(statement)
-                    if result is not None:  
+                    if result is not None:
                         return result
-            except Return as ret :
-                self.scopes.pop()  
-                raise ret
-            finally:
-                self.scopes.pop()  
-
-        # Execute the "else" block if the condition is False
-        elif else_statements:
-            self.scopes.append({})  
-            try:
+            elif else_statements:
                 for statement in else_statements:
                     result = self.run_statement(statement)
-                    if result is not None:  
-                        return  result
-            except Return as ret:
-                self.scopes.pop()  
-                raise ret
-            finally:
-                self.scopes.pop()  
-        # No value to return if no statements return a value
+                    if result is not None:
+                        return result
+        finally:
+            self.scopes.pop()  # Ensure the `if` block scope is popped
         return None
-
-
 
     def do_for(self, statement_node):
         self.do_assignment(statement_node.dict.get('init'))
@@ -418,26 +402,27 @@ class Interpreter(InterpreterBase): # change here for scoping
             # Execute the update statement
             self.do_assignment(statement_node.dict.get('update'))
         
-# def main():
-#     program = """
+def main():
+    program = """
 
-# func foo(a) {
-#   print(a);
-# }
+func foo(c) { 
+  if (c == 10) {
+    return 5;
+  }
+  else {
+    return 3;
+  }
+}
 
-# func foo(a,b) {
-#   print(a," ",b);
-# }
-
-# func main() {
-#   foo(5);
-#   foo(6,7);
-# }
-#                  """
+func main() {
+  print(foo(10));
+  print(foo(11));
+}
+                 """
 
 
-#     interpreter = Interpreter()
-#     interpreter.run(program)
+    interpreter = Interpreter()
+    interpreter.run(program)
 
-# if __name__ == "__main__":
-#     main()
+if __name__ == "__main__":
+    main()
