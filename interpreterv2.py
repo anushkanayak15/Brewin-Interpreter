@@ -213,14 +213,12 @@ class Interpreter(InterpreterBase): # change here for scoping
             left_op = self.evaluate_expression(expr_node.dict.get("op1"))
             right_op = self.evaluate_expression(expr_node.dict.get("op2"))
            
-            # Check if left_op is an integer; if not, raise an error
+            #Check if left_op is an integer; if not, raise an error
             if not isinstance(left_op, int):
                 super().error(ErrorType.TYPE_ERROR, "Left operand must be an integer for comparison")
-
-            # Check if right_op is an integer; if not, raise an error
+            #Check if right_op is an integer; if not, raise an error
             if not isinstance(right_op, int):
                 super().error(ErrorType.TYPE_ERROR, "Right operand must be an integer for comparison")
-
             # Handling nil values in comparisons
             if left_op is None and right_op is None:
                 return expr_node.elem_type == '=='  
@@ -409,19 +407,22 @@ class Interpreter(InterpreterBase): # change here for scoping
             # Execute the update statement
             self.do_assignment(statement_node.dict.get('update'))
         
-def main():
-    program = """
+# def main():
+#     program = """
+# func main() {
+#   print(fact(5));
+# }
 
-func main() {
-  if (5 > "hi") {
-    print("wow");
-  }
-}
-                 """
+# func fact(n) {
+#   if (n <= 1) { return 1; }
+#   return n * fact(n-1);
+# }
+
+#                  """
 
 
-    interpreter = Interpreter()
-    interpreter.run(program)
+#     interpreter = Interpreter()
+#     interpreter.run(program)
 
-if __name__ == "__main__":
-    main()
+# if __name__ == "__main__":
+#     main()
