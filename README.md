@@ -1,31 +1,18 @@
-# CS 131 Fall 2024: Project Starter
+Failed Tests
+Correctness | test_cmp (0/1)
+Correctness | test_if (0/1)
+Correctness | test_input1 (0/1)
+Correctness | test_nested_ret (0/1)
+Correctness | test_nil2 (0/1)
+Correctness | test_nil_cmp (0/1)
+Correctness | test_recur1 (0/1)
+Correctness | test_recur2 (0/1)
+Correctness | test_recur_catalan_nums (0/1)
+Correctness | test_ret2 (0/1)
+Correctness | test_ret3 (0/1)
+Correctness | test_ret4 (0/1)
+Correctness | test_strict_and_or (0/1)
+Incorrectness | test_bad_expr6 (0/1)
+Incorrectness | test_static_scoping3 (0/1)
 
-Hey there! This is a template repository that contains the necessary boilerplate for [CS 131](https://ucla-cs-131.github.io/fall-24-website/)'s quarter-long project: making an interpreter. The project specs are as follows:
-
-1. [Project 1 Spec](https://docs.google.com/document/d/1npomXM55cXg9Af7BUXEj3_bFpj1sy2Jty2Nwi6Kp64E/edit?usp=sharing)
-
-There are four stages to the project; students are currently at the first. Thus, this folder contains the necessary bootstrapping code:
-
-- `ply/lex.py`, `ply/yacc.py`, `brewlex.py`, `brewparse.py`, responsible for taking in a string representing a Brewin program and outputting an AST (parser logic)
-- `elements.py`, defines the return type of the parser
-- `intbase.py`, the base class and enum definitions for the interpreter
-
-Some notes on your submission (for Project 1)
-
-1. You **must have a top-level, versioned `interpreterv1.py` file** that **exports the `Interpreter` class**. If not, **your code will not run on our autograder**.
-2. You may also submit one or more additional `.py` modules that your interpreter uses, if you decide to break up your solution into multiple `.py` files.
-3. You **should not modify/submit** ***any*** of the source files that are present in this base template, which includes:
-* `ply/lex.py`
-* `ply/yacc.py`
-* `brewlex.py`
-* `brewparse.py`
-* `element.py`
-* `intbase.py`
-
-You can find out more about our autograder, including how to run it, in [the accompanying repo](https://github.com/UCLA-CS-131/fall-24-autograder)
-
-## Licensing and Attribution
-
-This is an unlicensed repository; even though the source code is public, it is **not** governed by an open-source license.
-
-This code was primarily written by [Carey Nachenberg](http://careynachenberg.weebly.com/), with support from his TAs for the [Fall 2024 iteration of CS 131](https://ucla-cs-131.github.io/fall-24-website/).
+I was unable to impleent returns and nested returns. I tried very hard but I am not sure where my logic is failing. I also tried to handle nil test cases in different ways but none of them seemed to work.I realised very late but maybe I should have just used Professor's solution rather than working on mine. 
