@@ -359,45 +359,38 @@ class Interpreter(InterpreterBase): # change here for scoping
         super().output(output_str)
 
 
-    def handle_inputi(self, args):
-        # Initialize the input line
-        input_line = ""
-
-        # Check the number of arguments
-        if len(args) == 0:
-            # No arguments: get input directly
-            input_line = super().get_input()
-        elif len(args) == 1:
-            # One argument: use it as a prompt
-            prompt_str = self.evaluate_expression(args[0]).get("val")
+    def handle_inputi(self, statement_node):
+    # Check if statement_node is indeed a list (which it seems to be)
+        if isinstance(statement_node, list):
+            args = statement_node  # Assuming statement_node is a list of arguments
+        else:
+            args = statement_node.dict.get("args", [])
+       
+        # If a user prompt is provided, evaluate it
+        if len(args) > 0:
+            prompt_str = self.evaluate_expression(args[0])  # Evaluate the first argument as the prompt
             super().output(prompt_str)
-            input_line = super().get_input()
+
+
+        # Get input from user
+        user_input = super().get_input()
+       
+        return self.convert_to_integer(user_input)  # Convert and return the user input
+    
+    def handle_inputs(self, statement_node):
+        if isinstance(statement_node, list):
+            args = statement_node  # Assuming statement_node is a list of arguments
         else:
-            # More than one argument: raise an error
-            super().error(ErrorType.TYPE_ERROR, "Invalid number of arguments in inputi statement")
+            args = statement_node.dict.get("args", [])
+        user_inputs = []  # Initialize a list to collect user inputs
+        for arg in args:
+            prompt_str = self.evaluate_expression(arg)  # Evaluate each argument as a prompt
+            super().output(prompt_str)  # Print the prompt to the user
+            user_input = super().get_input()  # Get input from user
+            user_inputs.append(user_input)  # Collect inputs
 
-        # Convert the input to an integer and return
-        return self.convert_to_integer(input_line)
 
-
-    def handle_inputs(self, args):
-        # Initialize a list to collect user inputs
-        user_inputs = []
-
-        # Check the number of arguments
-        if len(args) == 0:
-            # No arguments: get a single input directly
-            user_inputs.append(super().get_input())
-        else:
-            # Arguments provided: treat each as a prompt for each input
-            for arg in args:
-                prompt_str = self.evaluate_expression(arg).get("val")
-                super().output(prompt_str)
-                user_input = super().get_input()
-                user_inputs.append(user_input)
-
-        # Return the list of user inputs
-        return user_inputs
+        return user_inputs  # Return the list of user inputs
 
 #convert user input to an integer, handling potential errors
     def convert_to_integer(self, user_input):
@@ -421,12 +414,12 @@ class Interpreter(InterpreterBase): # change here for scoping
         #return None  # Default return value is nil
    
     
-
-   
     def do_if(self, statement_node):
         # Evaluate the condition of the if statement
         condition = self.evaluate_expression(statement_node.dict.get('condition'))
-        if not isinstance(condition, bool):  # Ensure the condition evaluates to a boolean
+        
+        # Ensure the condition evaluates to a boolean
+        if not isinstance(condition, bool):
             super().error(ErrorType.TYPE_ERROR, "Condition in if statement must be of bool type")
 
         # Get the statements for the "if" and "else" blocks
@@ -438,22 +431,33 @@ class Interpreter(InterpreterBase): # change here for scoping
             self.scopes.append({})  # Create a new scope for the if block
             try:
                 for statement in if_statements:
-                    self.run_statement(statement)
+                    result = self.run_statement(statement)
+                    if result is not None:  # If a statement returns a value, return it immediately
+                        return result
             except Return as ret:
                 self.scopes.pop()  # Clean up scope on early return
                 raise ret
-            self.scopes.pop()  # Remove the scope after executing the if block
+            finally:
+                self.scopes.pop()  # Remove the scope after executing the if block
 
         # Execute the "else" block if the condition is False
         elif else_statements:
             self.scopes.append({})  # Create a new scope for the else block
             try:
                 for statement in else_statements:
-                    self.run_statement(statement)
+                    result = self.run_statement(statement)
+                    if result is not None:  # If a statement returns a value, return it immediately
+                        return result
             except Return as ret:
                 self.scopes.pop()  # Clean up scope on early return
                 raise ret
-            self.scopes.pop()  # Remove the scope after executing the else block
+            finally:
+                self.scopes.pop()  # Remove the scope after executing the else block
+
+        # No value to return if no statements return a value
+        return None
+
+
 
     def do_for(self, statement_node):
         # Initialize the loop variable
