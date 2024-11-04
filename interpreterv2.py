@@ -22,7 +22,7 @@ class Interpreter(InterpreterBase): # change here for scoping
         super().__init__(console_output, inp)
 # To implement lexical scoping, we will be using stack of stack of dictionaries.
 # Each scope stack will have its own dictionary to hold variable names and values
-        self.scopes = []  # Stack of stacks, each stack contains dictionaries for scopes
+        self.scopes = [{}]  # Stack of stacks, each stack contains dictionaries for scopes
         self.functions = {}  #Dictionary to store function
         #self.declared_vars = []  # List to track declared variables for the current scope
         #self.early_return_flag = False
@@ -62,24 +62,38 @@ class Interpreter(InterpreterBase): # change here for scoping
         #return function_list[0] #Return the main function
 
 
+    # def run_func(self, func_node):
+    #     func_scope = {}  # Create a new scope for function param
+    #     self.scopes.append(func_scope)  # Append the function scope
+    #     param_list = func_node.dict.get("params", [])
+    #     for param in param_list:
+    #         param_name = param.get("name")
+    #         self.scopes[-1][param_name] = None  # Initialize parameters
+
+
+    #     statement_list = func_node.dict.get("statements", [])
+    #     #self.early_return_flag = False
+    #     try:
+    #         for statement in statement_list:
+    #             self.run_statement(statement)
+    #     except Return as ret:
+    #         return ret.value  # Capture the return value
+    #     finally:
+    #         self.scopes.pop()
+    
     def run_func(self, func_node):
-        func_scope = {}  # Create a new scope for function param
-        self.scopes.append(func_scope)  # Append the function scope
-        param_list = func_node.dict.get("params", [])
-        for param in param_list:
-            param_name = param.get("name")
-            self.scopes[-1][param_name] = None  # Initialize parameters
-
-
+        # Prepare a new scope for the function and add its parameters
         statement_list = func_node.dict.get("statements", [])
-        #self.early_return_flag = False
         try:
+            # Loop through each statement in the function
             for statement in statement_list:
-                self.run_statement(statement)
+                result = self.run_statement(statement)
+                if result is not None:  # Capture the return value immediately
+                    return result
         except Return as ret:
-            return ret.value  # Capture the return value
-        finally:
-            self.scopes.pop()
+            # Return the captured return value
+            return ret.value
+        
     #Loop through each statement to process it
    
     def run_statement(self, statement_node):
@@ -309,41 +323,75 @@ class Interpreter(InterpreterBase): # change here for scoping
    
    
     #     self.scopes.pop()  # Remove the function scope after execution
+
     def do_func_call(self, func_name, args):
+        # Special case for built-in functions like print
         if func_name == "print":
-            self.handle_print(args)  # Directly handle the print function
+            self.handle_print(args)
             return None
         if func_name == "inputs":
             return self.handle_inputs(args)
-       
         if func_name == "inputi":
             return self.handle_inputi(args)
-       
-        arg_count = len(args)  # Get the number of arguments passed
-        key = f"{func_name}_{arg_count}"  # Create the key for the overloaded function
+
+        # Determine the correct function based on name and argument count
+        arg_count = len(args)
+        key = f"{func_name}_{arg_count}"
         if key not in self.functions:
             super().error(ErrorType.NAME_ERROR, f"Function {func_name} with {arg_count} arguments was not found")
 
-
+        # Fetch the function's definition
         func_def = self.functions[key]
+
+        # Evaluate each argument and prepare the function's parameter scope
         func_scope = {}
-        self.scopes.append(func_scope)
-
         for i, arg in enumerate(args):
-            value = self.evaluate_expression(arg)
             param_name = func_def.dict.get('args', [])[i].dict.get('name')
-            self.scopes[-1][param_name] = value
-
-        return_value = None
-        try:
-            for statement in func_def.dict.get('statements', []):
-                self.run_statement(statement)
-        except Return as ret:
-            return_value = ret.value
-        finally:
-            self.scopes.pop()
+            func_scope[param_name] = self.evaluate_expression(arg)
         
-        return return_value if return_value is not None else None
+        # Push the new scope for the function call
+        self.scopes.append(func_scope)
+        try:
+            # Execute the function's statements and handle any returns
+            return self.run_func(func_def)
+        finally:
+            # Ensure the scope is removed after execution
+            self.scopes.pop()
+    # def do_func_call(self, func_name, args):
+    #     if func_name == "print":
+    #         self.handle_print(args)  # Directly handle the print function
+    #         return None
+    #     if func_name == "inputs":
+    #         return self.handle_inputs(args)
+       
+    #     if func_name == "inputi":
+    #         return self.handle_inputi(args)
+       
+    #     arg_count = len(args)  # Get the number of arguments passed
+    #     key = f"{func_name}_{arg_count}"  # Create the key for the overloaded function
+    #     if key not in self.functions:
+    #         super().error(ErrorType.NAME_ERROR, f"Function {func_name} with {arg_count} arguments was not found")
+
+
+    #     func_def = self.functions[key]
+    #     func_scope = {}
+    #     self.scopes.append(func_scope)
+
+    #     for i, arg in enumerate(args):
+    #         value = self.evaluate_expression(arg)
+    #         param_name = func_def.dict.get('args', [])[i].dict.get('name')
+    #         self.scopes[-1][param_name] = value
+
+    #     return_value = None
+    #     try:
+    #         for statement in func_def.dict.get('statements', []):
+    #             self.run_statement(statement)
+    #     except Return as ret:
+    #         return_value = ret.value
+    #     finally:
+    #         self.scopes.pop()
+        
+    #     return return_value if return_value is not None else None
 
 
 
@@ -488,14 +536,19 @@ class Interpreter(InterpreterBase): # change here for scoping
 def main():
     program = """
 
-func main() {
-  print(fact(5));
+func foo(a) {
+  print(a);
 }
 
-func fact(n) {
-  if (n <= 1) { return 1; }
-  return n * fact(n-1);
+func foo(a,b) {
+  print(a," ",b);
 }
+
+func main() {
+  foo(5);
+  foo(6,7);
+}
+
 
                  """
 
