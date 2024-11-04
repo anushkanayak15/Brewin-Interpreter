@@ -9,9 +9,6 @@
 # The code distinguishes among variable definitions, assignments, and function calls, processing each type accordingly
 # The evaluation mechanism addresses variables, constants, binary operations, and function calls, while ensuring accurate error handling
 
-
-
-
 from intbase import InterpreterBase, ErrorType
 from brewparse import parse_program
 class Return(Exception):
@@ -25,10 +22,10 @@ class Interpreter(InterpreterBase): # change here for scoping
         super().__init__(console_output, inp)
 # To implement lexical scoping, we will be using stack of stack of dictionaries.
 # Each scope stack will have its own dictionary to hold variable names and values
-        self.scopes = [[]]  # Stack of stacks, each stack contains dictionaries for scopes
+        self.scopes = []  # Stack of stacks, each stack contains dictionaries for scopes
         self.functions = {}  #Dictionary to store function
         #self.declared_vars = []  # List to track declared variables for the current scope
-        self.early_return_flag = False
+        #self.early_return_flag = False
    
     def run(self, program):
         #This is the main method to start executing the program
@@ -50,10 +47,6 @@ class Interpreter(InterpreterBase): # change here for scoping
                 super().error(ErrorType.NAME_ERROR, f"Function {func_name} already defined with {arg_count} arguments")
             self.functions[key] = func  # Store the function definition with the unique key
            
-
-
-
-
     def get_main_func(self, ast):
         function_list = ast.get("functions") #To get the list of functions from the program
         #  Check if there are functions and if the main function is present
@@ -69,47 +62,24 @@ class Interpreter(InterpreterBase): # change here for scoping
         #return function_list[0] #Return the main function
 
 
-    # def run_func(self, func_node):
-    #     self.scopes.append([{}])  # New scope for function parameters
-    #     param_list = func_node.dict.get("params", [])
-    #     for param in param_list:
-    #         param_name = param.get("name")
-    #         self.scopes[-1][-1][param_name] = None  # Initialize parameters
-
-
-    #     statement_list = func_node.dict.get("statements", [])
-    #     return_value = None
-    #     for statement in statement_list:
-    #         return_value = self.run_statement(statement)
-    #         if return_value is not None:  # If a return value is encountered
-    #             break
-
-
-    #     self.scopes.pop()  # Clean up function body scope
-    #     return return_value  # Return the captured return value
-
-
     def run_func(self, func_node):
         func_scope = {}  # Create a new scope for function param
-        self.scopes.append([func_scope])  # Append the function scope
+        self.scopes.append(func_scope)  # Append the function scope
         param_list = func_node.dict.get("params", [])
         for param in param_list:
             param_name = param.get("name")
-            self.scopes[-1][-1][param_name] = None  # Initialize parameters
+            self.scopes[-1][param_name] = None  # Initialize parameters
 
 
         statement_list = func_node.dict.get("statements", [])
-        self.early_return_flag = False
-        self.return_value = None
-        for statement in statement_list:
-            self.run_statement(statement)
-            if self.early_return_flag:  #Check for early return
-                break
-
-
-        self.scopes.pop()  # Clean up function body scope
-        return self.return_value  # Return the captured return value
-   
+        #self.early_return_flag = False
+        try:
+            for statement in statement_list:
+                self.run_statement(statement)
+        except Return as ret:
+            return ret.value  # Capture the return value
+        finally:
+            self.scopes.pop()
     #Loop through each statement to process it
    
     def run_statement(self, statement_node):
@@ -131,21 +101,11 @@ class Interpreter(InterpreterBase): # change here for scoping
         else:
            super().error(ErrorType.NAME_ERROR, f"Invalid statement")
 
-
-
-
-
-
-
-
     def do_definition(self, statement_node):
         var_name = statement_node.dict.get("name")  # Get variable name from the dictionary
 
-
-        # Check if there is a current scope to define the variable
-        if not self.scopes or not self.scopes[-1]:
-            super().error(ErrorType.NAME_ERROR, "No current scope to define variable")
-
+        if var_name in self.scopes[-1]:
+            super().error(ErrorType.NAME_ERROR, f"Variable {var_name} already defined in this scope")
 
         # # Check in the current top dictionary of the stack for duplicates
         # if var_name in self.scopes[-1][-1]:  
@@ -154,62 +114,27 @@ class Interpreter(InterpreterBase): # change here for scoping
 
         # Add the variable to the current scope and initialize it to None
        
-        self.scopes[-1][-1][var_name] = None
+        self.scopes[-1][var_name] = None
    
-       
-    # def do_assignment(self, statement_node):
-    #     var_name = statement_node.dict.get("name")
-    #     value = self.evaluate_expression(statement_node.dict.get("expression"))
-
-
-    #     # Check if there are any scopes available
-    #     if not self.scopes:
-    #         super().error(ErrorType.NAME_ERROR, "No scopes available for variable assignment")
-
-
-    #     # Check all scopes for variable definition
-    #     for inner_stack in reversed(self.scopes):
-    #         if inner_stack and inner_stack[-1]:  # Check if the inner stack is not empty
-    #             if var_name in inner_stack[-1]:  # Check in the current top dictionary of the current stack
-    #                 inner_stack[-1][var_name] = value  # Update variable in the found scope
-    #                 return
-
-
-    #     super().error(ErrorType.NAME_ERROR, f"Variable {var_name} has not been defined")
     def do_assignment(self, statement_node):
         var_name = statement_node.dict.get("name")
         value = self.evaluate_expression(statement_node.dict.get("expression"))
-
-
-        # Traverse from the innermost to outermost scope stack
-        for scope_stack in reversed(self.scopes):
-            if scope_stack:  # Ensure scope_stack is not empty
-                if var_name in scope_stack[-1]:  # If variable is found in any scope
-                    scope_stack[-1][var_name] = value  # Update the variable's value
-                    return
-       
-        # If variable is not found, define it in the current (innermost) scope
-        if self.scopes[-1]:  # Ensure there is at least one scope dictionary
-            self.scopes[-1][-1][var_name] = value
-        else:
-            # Add a new dictionary to the current scope stack if empty, then define the variable
-            self.scopes[-1].append({var_name: value})
-
+        for scope in reversed(self.scopes):
+            if var_name in scope:
+                scope[var_name] = value
+                return
+        self.scopes[-1][var_name] = value
+        
 
     def evaluate_expression(self, expr_node):
      # Evaluate different tpes of expression nodes
         if expr_node.elem_type == "var": # Evaluate variable node
             var_name = expr_node.dict.get("name")  # Access the variable name
            
-            # Find the variable in the current stack or any outer stacks
             for scope in reversed(self.scopes):
-                if scope and scope[-1]:  # Ensure scope and its top dictionary are not empty
-                    if var_name in scope[-1]:  # Check in the top dictionary of the current stack
-                        return scope[-1][var_name]
+                if var_name in scope:
+                    return scope[var_name]
             super().error(ErrorType.NAME_ERROR, f"Variable {var_name} has not been defined")
-
-
-
 
         #Evaluate constant nodes for integers
         elif expr_node.elem_type == "int":
@@ -231,11 +156,6 @@ class Interpreter(InterpreterBase): # change here for scoping
                 return -operand  # Return the negated value
             else:
                 super().error(ErrorType.TYPE_ERROR, "Negation operator expects an integer")
-
-
-
-
-
 
         #Evaluate binary operations (addition and subtraction)
         elif expr_node.elem_type in ['+', '-', '*', '/']:
@@ -405,27 +325,24 @@ class Interpreter(InterpreterBase): # change here for scoping
             super().error(ErrorType.NAME_ERROR, f"Function {func_name} with {arg_count} arguments was not found")
 
 
-        def_func = self.functions[key]  # Retrieve the correct function definition
-        def_args = def_func.dict.get('args', [])
-        if len(args) != len(def_args):  # Check for correct number of arguments
-            super().error(ErrorType.NAME_ERROR, f"Function {func_name} takes {len(def_args)} arguments but was called with {len(args)}")
+        func_def = self.functions[key]
         func_scope = {}
-        self.scopes.append([func_scope])# Create a new scope for function parameters
+        self.scopes.append(func_scope)
+
         for i, arg in enumerate(args):
-            value = self.evaluate_expression(arg)  # Evaluate the argument expression
-            param_name = def_args[i].dict.get('name')
-            self.scopes[-1][-1][param_name] = value  # Assign the evaluated value to the parameter name
+            value = self.evaluate_expression(arg)
+            param_name = func_def.dict.get('args', [])[i].dict.get('name')
+            self.scopes[-1][param_name] = value
 
         return_value = None
-        statement_list = def_func.dict.get('statements', [])
         try:
-            for statement in statement_list:
+            for statement in func_def.dict.get('statements', []):
                 self.run_statement(statement)
         except Return as ret:
-            return_value = ret.value  # Capture return value
+            return_value = ret.value
         finally:
-            self.scopes.pop()  # Clean up function scope
-
+            self.scopes.pop()
+        
         return return_value if return_value is not None else None
 
 
@@ -501,85 +418,80 @@ class Interpreter(InterpreterBase): # change here for scoping
 
    
     def do_if(self, statement_node):
+        # Evaluate the condition of the if statement
         condition = self.evaluate_expression(statement_node.dict.get('condition'))
         if not isinstance(condition, bool):  # Ensure the condition evaluates to a boolean
             super().error(ErrorType.TYPE_ERROR, "Condition in if statement must be of bool type")
-        block_scope = dict(self.scopes[-1][-1])
-        # Create a new scope for the statements in the if block
-        self.scopes.append([block_scope]) # Create a new dictionary for the new scope
 
+        # Get the statements for the "if" and "else" blocks
+        if_statements = statement_node.dict.get('statements', [])
+        else_statements = statement_node.dict.get('else_stm', [])
 
-        statements = statement_node.dict.get('statements', [])
-        else_stm = statement_node.dict.get('else_stm', None)
+        # Execute the "if" block if the condition is True
+        if condition:
+            self.scopes.append({})  # Create a new scope for the if block
+            try:
+                for statement in if_statements:
+                    self.run_statement(statement)
+            except Return as ret:
+                self.scopes.pop()  # Clean up scope on early return
+                raise ret
+            self.scopes.pop()  # Remove the scope after executing the if block
 
-
-        if condition:  # If the condition is true, execute if block
-            for statement in statements:
-                self.run_statement(statement)
-                if self.early_return_flag:  # Exit if an early return occurred
-                    break
-        elif else_stm:  # If the condition is false & there are else statements, execute the else statements
-            for statement in else_stm:
-                self.run_statement(statement)
-                if self.early_return_flag:  # Exit if an early return occurred
-                    break
-
-
-        self.scopes.pop()  # Remove the scope after executing the if statement
-
-
-
+        # Execute the "else" block if the condition is False
+        elif else_statements:
+            self.scopes.append({})  # Create a new scope for the else block
+            try:
+                for statement in else_statements:
+                    self.run_statement(statement)
+            except Return as ret:
+                self.scopes.pop()  # Clean up scope on early return
+                raise ret
+            self.scopes.pop()  # Remove the scope after executing the else block
 
     def do_for(self, statement_node):
-        self.do_assignment(statement_node.dict.get('init'))  #Execute the initialization statemen
+        # Initialize the loop variable
+        self.do_assignment(statement_node.dict.get('init'))
+
+        # Loop until the condition is False
         while True:
+            # Evaluate the condition
             condition = self.evaluate_expression(statement_node.dict.get('condition'))
-            if not isinstance(condition, bool):  #Ensure the condition evaluates to a boolean
-                super().error(ErrorType.TYPE_ERROR, "Condition in loops must be of bool type")
-            if not condition:  #if condition is false  exit the loop
+            if not isinstance(condition, bool):  # Ensure the condition evaluates to a boolean
+                super().error(ErrorType.TYPE_ERROR, "Condition in for loop must be of bool type")
+            if not condition:  # Exit the loop if the condition is False
                 break
-            statements = statement_node.dict.get('statements', [])
-            for statement in statements:
-                self.run_statement(statement)  # execute the statements within the loop
-                if self.early_return_flag:  # Exit if an early return occurred
-                    break
-            self.do_assignment(statement_node.dict.get('update'))  #Execute the update statement
-             
+
+            # Execute the loop body
+            self.scopes.append({})  # Create a new scope for the loop iteration
+            try:
+                for statement in statement_node.dict.get('statements', []):
+                    self.run_statement(statement)
+            except Return as ret:
+                self.scopes.pop()  # Clean up scope on early return
+                raise ret
+            self.scopes.pop()  # Remove the scope after each iteration
+
+            # Execute the update statement
+            self.do_assignment(statement_node.dict.get('update'))
+        
 def main():
     program = """
 
-
-  func foo() {
- print(1);
-}
-
-
-func bar() {
- return nil;
-}
-
-
 func main() {
- var x;
- x = foo();
- if (x == nil) {
-  print(2);
- }
- var y;
- y = bar();
- if (y == nil) {
-  print(3);
- }
- 
+  print(fact(5));
 }
 
+func fact(n) {
+  if (n <= 1) { return 1; }
+  return n * fact(n-1);
+}
 
                  """
 
 
     interpreter = Interpreter()
     interpreter.run(program)
-
 
 if __name__ == "__main__":
     main()
