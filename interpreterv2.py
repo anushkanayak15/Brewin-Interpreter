@@ -329,18 +329,16 @@ class Interpreter(InterpreterBase): # change here for scoping
         func_scope = {}
         self.scopes.append(func_scope)
 
-        for i, arg in enumerate(args):
-            value = self.evaluate_expression(arg)
-            param_name = func_def.dict.get('args', [])[i].dict.get('name')
-            self.scopes[-1][param_name] = value
-
-        return_value = None
+        # Map arguments to function parameters in the new scope
+        param_names = [param.dict.get("name") for param in func_def.dict.get("args", [])]
+        for param_name, arg_expr in zip(param_names, args):
+            func_scope[param_name] = self.evaluate_expression(arg_expr)
+        
         try:
-            for statement in func_def.dict.get('statements', []):
-                self.run_statement(statement)
-        except Return as ret:
-            return_value = ret.value
+            # Run the function and capture the return value if any
+            return_value = self.run_func(func_def)
         finally:
+            # Pop the function's scope after execution
             self.scopes.pop()
         
         return return_value if return_value is not None else None
@@ -477,7 +475,6 @@ class Interpreter(InterpreterBase): # change here for scoping
         
 def main():
     program = """
-
 func main() {
   print(fact(5));
 }
@@ -486,7 +483,6 @@ func fact(n) {
   if (n <= 1) { return 1; }
   return n * fact(n-1);
 }
-
                  """
 
 
