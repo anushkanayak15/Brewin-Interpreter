@@ -7,19 +7,34 @@ class Type:
     BOOL = "bool"
     STRING = "string"
     NIL = "nil"
+    VOID = "void"
 
 
 # Represents a value, which has a type and its value
 class Value:
     def __init__(self, type, value=None):
         self.t = type
-        self.v = value
+        #self.v = value
+        self.v = value if value is not None else self.default_value(type)
 
     def value(self):
         return self.v
 
     def type(self):
         return self.t
+    # if a function has a non-void return type but does not explicitly return a value,
+    #  it should return a default value based on the return type
+    def default_value(self, type):
+        if type == Type.INT:
+            return 0
+        elif type == Type.BOOL:
+            return False
+        elif type == Type.STRING:
+            return ""
+        elif type == Type.VOID:
+            return None
+        
+        return None
 
 
 def create_value(val):
