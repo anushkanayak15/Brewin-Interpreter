@@ -37,14 +37,27 @@ class Interpreter(InterpreterBase):
         self.__call_func_aux("main", [])
 
     def __set_up_function_table(self, ast):
+        # validate the parameter types and return type for each function before execution
         self.func_name_to_ast = {}
         for func_def in ast.get("functions"):
             func_name = func_def.get("name")
             num_params = len(func_def.get("args"))
+            # Store parameter and return types for type checking
+            param_types = [arg.get("type") for arg in func_def.get("args")]
+            return_type = func_def.get("return_type")
+            
+            # Validate parameter and return types against defined Type values
+            for param_type in param_types:
+                if param_type not in vars(Type).values():
+                    super().error(ErrorType.TYPE_ERROR, f"Invalid type {param_type} in parameters")
+            
+            if return_type not in vars(Type).values():
+                super().error(ErrorType.TYPE_ERROR, f"Invalid return type {return_type} for function {func_name}")
+            
             if func_name not in self.func_name_to_ast:
                 self.func_name_to_ast[func_name] = {}
             self.func_name_to_ast[func_name][num_params] = func_def
-
+            
     def __get_func_by_name(self, name, num_params):
         if name not in self.func_name_to_ast:
             super().error(ErrorType.NAME_ERROR, f"Function {name} not found")
@@ -93,6 +106,9 @@ class Interpreter(InterpreterBase):
         return self.__call_func_aux(func_name, actual_args)
 
     def __call_func_aux(self, func_name, actual_args):
+        # enforce type consistency during function calls
+        #actual  arg tpes must match the expected formal arg type
+        #  return type of the function must align with the specified return type
         if func_name == "print":
             return self.__call_print(actual_args)
         if func_name == "inputi" or func_name == "inputs":
@@ -100,6 +116,8 @@ class Interpreter(InterpreterBase):
 
         func_ast = self.__get_func_by_name(func_name, len(actual_args))
         formal_args = func_ast.get("args")
+        return_type = func_ast.get("return_type")
+        
         if len(actual_args) != len(formal_args):
             super().error(
                 ErrorType.NAME_ERROR,
@@ -111,6 +129,11 @@ class Interpreter(InterpreterBase):
         for formal_ast, actual_ast in zip(formal_args, actual_args):
             result = copy.copy(self.__eval_expr(actual_ast))
             arg_name = formal_ast.get("name")
+            arg_type = formal_ast.get("type")
+            args[arg_name] = result
+            if result.type() != arg_type:
+                super().error(ErrorType.TYPE_ERROR, f"Type mismatch for argument {arg_name} in function {func_name}")
+        
             args[arg_name] = result
 
         # then create the new activation record 
@@ -118,8 +141,13 @@ class Interpreter(InterpreterBase):
         # and add the formal arguments to the activation record
         for arg_name, value in args.items():
           self.env.create(arg_name, value)
+
         _, return_val = self.__run_statements(func_ast.get("statements"))
         self.env.pop_func()
+        # Check if return type matches the specified return type
+        if return_type != Type.VOID and (return_val is None or return_val.type() != return_type):
+            super().error(ErrorType.TYPE_ERROR, f"Return type mismatch in function {func_name}")
+        
         return return_val
 
     def __call_print(self, args):
@@ -153,7 +181,15 @@ class Interpreter(InterpreterBase):
             )
     
     def __var_def(self, var_ast):
+        # initialize with default values and validate type
         var_name = var_ast.get("name")
+        var_type = var_ast.get("type")
+        # Check if the variable type is valid
+        if var_type not in vars(Type).values():
+            super().error(ErrorType.TYPE_ERROR, f"Invalid type {var_type} for variable {var_name}")
+        
+        # Set default value based on type
+        default_value = Value(var_type).default_value(var_type)
         if not self.env.create(var_name, Interpreter.NIL_VALUE):
             super().error(
                 ErrorType.NAME_ERROR, f"Duplicate definition for variable {var_name}"
@@ -331,6 +367,9 @@ class Interpreter(InterpreterBase):
     def __do_return(self, return_ast):
         expr_ast = return_ast.get("expression")
         if expr_ast is None:
-            return (ExecStatus.RETURN, Interpreter.NIL_VALUE)
+            #return (ExecStatus.RETURN, Interpreter.NIL_VALUE)
+            return (ExecStatus.RETURN, Value(Type.VOID))
         value_obj = copy.copy(self.__eval_expr(expr_ast))
         return (ExecStatus.RETURN, value_obj)
+    
+    
