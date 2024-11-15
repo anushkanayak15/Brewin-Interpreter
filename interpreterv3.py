@@ -109,6 +109,7 @@ class Interpreter(InterpreterBase):
         # enforce type consistency during function calls
         #actual  arg tpes must match the expected formal arg type
         #  return type of the function must align with the specified return type
+        # handle coercion when passing parameters
         if func_name == "print":
             return self.__call_print(actual_args)
         if func_name == "inputi" or func_name == "inputs":
@@ -130,7 +131,10 @@ class Interpreter(InterpreterBase):
             result = copy.copy(self.__eval_expr(actual_ast))
             arg_name = formal_ast.get("name")
             arg_type = formal_ast.get("type")
-            args[arg_name] = result
+            # Coerce if passing an int to a bool parameter
+            if arg_type == Type.BOOL and result.type() == Type.INT:
+                result = self.__coerce_to_bool(result)
+            
             if result.type() != arg_type:
                 super().error(ErrorType.TYPE_ERROR, f"Type mismatch for argument {arg_name} in function {func_name}")
         
@@ -144,6 +148,9 @@ class Interpreter(InterpreterBase):
 
         _, return_val = self.__run_statements(func_ast.get("statements"))
         self.env.pop_func()
+        # Coerce return value if function return type is bool and return_val is int
+        if return_type == Type.BOOL and return_val.type() == Type.INT:
+            return_val = self.__coerce_to_bool(return_val)
         # Check if return type matches the specified return type
         if return_type != Type.VOID and (return_val is None or return_val.type() != return_type):
             super().error(ErrorType.TYPE_ERROR, f"Return type mismatch in function {func_name}")
@@ -172,13 +179,27 @@ class Interpreter(InterpreterBase):
         if name == "inputs":
             return Value(Type.STRING, inp)
 
+    # Modify __assign to handle int to bool coercion by checking the current type via EnvironmentManager
     def __assign(self, assign_ast):
         var_name = assign_ast.get("name")
         value_obj = self.__eval_expr(assign_ast.get("expression"))
-        if not self.env.set(var_name, value_obj):
-            super().error(
-                ErrorType.NAME_ERROR, f"Undefined variable {var_name} in assignment"
-            )
+        current_value_obj = self.env.get(var_name)  # Retrieve the current variable's Value object
+
+        # Check if the variable exists
+        if current_value_obj is None:
+            super().error(ErrorType.NAME_ERROR, f"Undefined variable {var_name} in assignment")
+
+        # Coerce if assigning an int to a bool variable
+        if current_value_obj.type() == Type.BOOL and value_obj.type() == Type.INT:
+            value_obj = self.__coerce_to_bool(value_obj)
+
+        # Type mismatch error check
+        if current_value_obj.type() != value_obj.type():
+            super().error(ErrorType.TYPE_ERROR, f"Type mismatch in assignment to {var_name}")
+
+        self.env.set(var_name, value_obj)
+
+
     
     def __var_def(self, var_ast):
         # initialize with default values and validate type
@@ -222,6 +243,19 @@ class Interpreter(InterpreterBase):
     def __eval_op(self, arith_ast):
         left_value_obj = self.__eval_expr(arith_ast.get("op1"))
         right_value_obj = self.__eval_expr(arith_ast.get("op2"))
+        
+        # Coerce both operands to boolean if the operation is logical (&& or ||)
+        if arith_ast.elem_type in {"&&", "||"}:
+            left_value_obj = self.__coerce_to_bool(left_value_obj)
+            right_value_obj = self.__coerce_to_bool(right_value_obj)
+        
+        # Also handle coercion for equality comparisons, allowing int-to-bool comparison
+        elif arith_ast.elem_type in {"==", "!="}:
+            if left_value_obj.type() == Type.INT and right_value_obj.type() == Type.BOOL:
+                left_value_obj = self.__coerce_to_bool(left_value_obj)
+            elif left_value_obj.type() == Type.BOOL and right_value_obj.type() == Type.INT:
+                right_value_obj = self.__coerce_to_bool(right_value_obj)
+
         if not self.__compatible_types(
             arith_ast.elem_type, left_value_obj, right_value_obj
         ):
@@ -234,7 +268,13 @@ class Interpreter(InterpreterBase):
                 ErrorType.TYPE_ERROR,
                 f"Incompatible operator {arith_ast.elem_type} for type {left_value_obj.type()}",
             )
-        f = self.op_to_lambda[left_value_obj.type()][arith_ast.elem_type]
+        #f = self.op_to_lambda[left_value_obj.type()][arith_ast.elem_type]
+        f = self.op_to_lambda[left_value_obj.type()].get(arith_ast.elem_type)
+        if f is None:
+            super().error(
+                ErrorType.TYPE_ERROR,
+                f"Incompatible operator {arith_ast.elem_type} for type {left_value_obj.type()}",
+            )
         return f(left_value_obj, right_value_obj)
 
     def __compatible_types(self, oper, obj1, obj2):
@@ -324,6 +364,8 @@ class Interpreter(InterpreterBase):
     def __do_if(self, if_ast):
         cond_ast = if_ast.get("condition")
         result = self.__eval_expr(cond_ast)
+        # Coerce if condition is int
+        result = self.__coerce_to_bool(result)
         if result.type() != Type.BOOL:
             super().error(
                 ErrorType.TYPE_ERROR,
@@ -350,6 +392,7 @@ class Interpreter(InterpreterBase):
         run_for = Interpreter.TRUE_VALUE
         while run_for.value():
             run_for = self.__eval_expr(cond_ast)  # check for-loop condition
+            run_for = self.__coerce_to_bool(run_for)  # Coerce if condition is int
             if run_for.type() != Type.BOOL:
                 super().error(
                     ErrorType.TYPE_ERROR,
@@ -370,6 +413,18 @@ class Interpreter(InterpreterBase):
             #return (ExecStatus.RETURN, Interpreter.NIL_VALUE)
             return (ExecStatus.RETURN, Value(Type.VOID))
         value_obj = copy.copy(self.__eval_expr(expr_ast))
+        # Coerce if function return type is bool and return value is int
+        func_return_type = self.env.get("current_return_type")
+        if func_return_type == Type.BOOL and value_obj.type() == Type.INT:
+            value_obj = self.__coerce_to_bool(value_obj)
+        if func_return_type != Type.VOID and value_obj.type() != func_return_type:
+            super().error(ErrorType.TYPE_ERROR, "Return type mismatch")
         return (ExecStatus.RETURN, value_obj)
     
+    # Helper function to coerce an integer to a boolean
+    def __coerce_to_bool(self, value):
+        if value.type() == Type.INT:
+            return Value(Type.BOOL, value.value() != 0)
+        return value
+        
     
