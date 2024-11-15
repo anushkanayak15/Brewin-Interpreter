@@ -7,7 +7,9 @@ from brewparse import parse_program
 from env_v2 import EnvironmentManager
 from intbase import InterpreterBase, ErrorType
 from type_valuev2 import Type, Value, create_value, get_printable
-
+#FOR STRUCTS
+#new class in new type file for user objects. this class has type and value. the value is a dict to hold fields 
+#have a check of exsisting user objects. because student can call person. user defined func goes through all the structs and calls create user
 
 class ExecStatus(Enum):
     CONTINUE = 1
@@ -43,7 +45,7 @@ class Interpreter(InterpreterBase):
             func_name = func_def.get("name")
             num_params = len(func_def.get("args"))
             # Store parameter and return types for type checking
-            param_types = [arg.get("type") for arg in func_def.get("args")]
+            param_types = [arg.get("var_type") for arg in func_def.get("args")]
             return_type = func_def.get("return_type")
             
             # Validate parameter and return types against defined Type values
@@ -69,20 +71,20 @@ class Interpreter(InterpreterBase):
             )
         return candidate_funcs[num_params]
 
-    def __run_statements(self, statements):
+    def __run_statements(self, statements, default_return =None):
         self.env.push_block()
         for statement in statements:
-            if self.trace_output:
-                print(statement)
-            status, return_val = self.__run_statement(statement)
+            # if self.trace_output:
+            #     print(statement, default_return)
+            status, return_val = self.__run_statement(statement, default_return)
             if status == ExecStatus.RETURN:
                 self.env.pop_block()
                 return (status, return_val)
 
         self.env.pop_block()
-        return (ExecStatus.CONTINUE, Interpreter.NIL_VALUE)
+        return (ExecStatus.CONTINUE, default_return)
 
-    def __run_statement(self, statement):
+    def __run_statement(self, statement, default_return):
         status = ExecStatus.CONTINUE
         return_val = None
         if statement.elem_type == InterpreterBase.FCALL_NODE:
@@ -92,7 +94,7 @@ class Interpreter(InterpreterBase):
         elif statement.elem_type == InterpreterBase.VAR_DEF_NODE:
             self.__var_def(statement)
         elif statement.elem_type == InterpreterBase.RETURN_NODE:
-            status, return_val = self.__do_return(statement)
+            status, return_val = self.__do_return(statement, default_return)
         elif statement.elem_type == Interpreter.IF_NODE:
             status, return_val = self.__do_if(statement)
         elif statement.elem_type == Interpreter.FOR_NODE:
@@ -111,13 +113,16 @@ class Interpreter(InterpreterBase):
         #  return type of the function must align with the specified return type
         # handle coercion when passing parameters
         if func_name == "print":
-            return self.__call_print(actual_args)
+           self.__call_print(actual_args)
+           return 
         if func_name == "inputi" or func_name == "inputs":
             return self.__call_input(func_name, actual_args)
 
         func_ast = self.__get_func_by_name(func_name, len(actual_args))
         formal_args = func_ast.get("args")
         return_type = func_ast.get("return_type")
+        
+        print(f"Invoking function '{func_name}' with return type '{return_type}'")  # Debug
         
         if len(actual_args) != len(formal_args):
             super().error(
@@ -130,9 +135,11 @@ class Interpreter(InterpreterBase):
         for formal_ast, actual_ast in zip(formal_args, actual_args):
             result = copy.copy(self.__eval_expr(actual_ast))
             arg_name = formal_ast.get("name")
-            arg_type = formal_ast.get("type")
+            arg_type = formal_ast.get("var_type")
             # Coerce if passing an int to a bool parameter
+            
             if arg_type == Type.BOOL and result.type() == Type.INT:
+                #print("in call func aux before param coerce to bool")
                 result = self.__coerce_to_bool(result)
             
             if result.type() != arg_type:
@@ -145,25 +152,45 @@ class Interpreter(InterpreterBase):
         # and add the formal arguments to the activation record
         for arg_name, value in args.items():
           self.env.create(arg_name, value)
-
+        # Execute function body
         _, return_val = self.__run_statements(func_ast.get("statements"))
         self.env.pop_func()
+        #print(f"Function '{func_name}' is a void function with return type '{return_type}'")
+        #print(f"Return value: {return_val} (type: {return_val.type() if return_val is not None else 'None'})")
+        # Handle void function return type constraints
+
+        # if return_type == Type.VOID:
+        #     if return_val is not None and return_val != Interpreter.NIL_VALUE:
+        #         print(f"Warning: Void function '{func_name}' attempted to return a value of type '{return_val.type()}'")
+        #         super().error(ErrorType.TYPE_ERROR, f"Void function {func_name} should not return a value")
+        #         # No exception is raised here; it is only a debug print.
+            
+        #     return None  # Void functions return nothing
+
+        # Ensure a default value for non-void functions if no return was explicitly provided
+        if return_val is None:
+            default_value = Value(return_val)
+            return_val = Value(default_value)  # Default to the type's default value
+            
         # Coerce return value if function return type is bool and return_val is int
         if return_type == Type.BOOL and return_val.type() == Type.INT:
             return_val = self.__coerce_to_bool(return_val)
-        # Check if return type matches the specified return type
-        if return_type != Type.VOID and (return_val is None or return_val.type() != return_type):
-            super().error(ErrorType.TYPE_ERROR, f"Return type mismatch in function {func_name}")
         
-        return return_val
+        # if return_val.type() != return_type:
+        #     super().error(ErrorType.TYPE_ERROR, f"Return type mismatch in function {func_name}")
 
+        return return_val
+#try to get a fefault_return that returns a value object setting the value with its defualt using the default func in typeval2
+#pass that default returnr to run statements and then run statement in which we pass that to do return. in do return we use that
+# it either has an expression node or not. if it has an expression node and return type is none then we raise an error
+    
     def __call_print(self, args):
         output = ""
         for arg in args:
             result = self.__eval_expr(arg)  # result is a Value object
             output = output + get_printable(result)
         super().output(output)
-        return Interpreter.NIL_VALUE
+        #return Interpreter.NIL_VALUE
 
     def __call_input(self, name, args):
         if args is not None and len(args) == 1:
@@ -195,6 +222,7 @@ class Interpreter(InterpreterBase):
 
         # Type mismatch error check
         if current_value_obj.type() != value_obj.type():
+            print(f"Assigning {value_obj.value()} of type {value_obj.type()} to {var_name} of type {current_value_obj.type()}")
             super().error(ErrorType.TYPE_ERROR, f"Type mismatch in assignment to {var_name}")
 
         self.env.set(var_name, value_obj)
@@ -204,14 +232,17 @@ class Interpreter(InterpreterBase):
     def __var_def(self, var_ast):
         # initialize with default values and validate type
         var_name = var_ast.get("name")
-        var_type = var_ast.get("type")
+        var_type = var_ast.get("var_type")
+
         # Check if the variable type is valid
         if var_type not in vars(Type).values():
             super().error(ErrorType.TYPE_ERROR, f"Invalid type {var_type} for variable {var_name}")
         
         # Set default value based on type
-        default_value = Value(var_type).default_value(var_type)
-        if not self.env.create(var_name, Interpreter.NIL_VALUE):
+        default_value = Value(var_type)
+        print(f"Creating variable '{var_name}' with type '{var_type}' and default value '{default_value}'") 
+        
+        if not self.env.create(var_name, default_value):
             super().error(
                 ErrorType.NAME_ERROR, f"Duplicate definition for variable {var_name}"
             )
@@ -362,10 +393,13 @@ class Interpreter(InterpreterBase):
         )
 
     def __do_if(self, if_ast):
+        print("in if block")
         cond_ast = if_ast.get("condition")
         result = self.__eval_expr(cond_ast)
         # Coerce if condition is int
         result = self.__coerce_to_bool(result)
+        print("type:", result.type(), "value:", result.value())
+
         if result.type() != Type.BOOL:
             super().error(
                 ErrorType.TYPE_ERROR,
@@ -407,18 +441,26 @@ class Interpreter(InterpreterBase):
 
         return (ExecStatus.CONTINUE, Interpreter.NIL_VALUE)
 
-    def __do_return(self, return_ast):
+    def __do_return(self, return_ast, default_type):
         expr_ast = return_ast.get("expression")
+        #func_return_type = self.env.get("current_return_type")
+        # Void function should not return a value
+        if default_type == Type.VOID and expr_ast is not None:
+            super().error(ErrorType.TYPE_ERROR, "Void function cannot return a value")
+        
         if expr_ast is None:
+            #print("Void return statement encountered")
             #return (ExecStatus.RETURN, Interpreter.NIL_VALUE)
-            return (ExecStatus.RETURN, Value(Type.VOID))
+            return (ExecStatus.RETURN, default_type)
         value_obj = copy.copy(self.__eval_expr(expr_ast))
         # Coerce if function return type is bool and return value is int
         func_return_type = self.env.get("current_return_type")
         if func_return_type == Type.BOOL and value_obj.type() == Type.INT:
             value_obj = self.__coerce_to_bool(value_obj)
-        if func_return_type != Type.VOID and value_obj.type() != func_return_type:
+        
+        if default_type() != value_obj.type():
             super().error(ErrorType.TYPE_ERROR, "Return type mismatch")
+
         return (ExecStatus.RETURN, value_obj)
     
     # Helper function to coerce an integer to a boolean
@@ -427,4 +469,29 @@ class Interpreter(InterpreterBase):
             return Value(Type.BOOL, value.value() != 0)
         return value
         
-    
+def main():
+    program = """
+func main() : void {
+  print(5 || false);
+  var a:int;
+  a = 1;
+  if (a) {
+    print("if works on integers now!");
+  }
+  foo(a-1);
+}
+
+func foo(b : bool) : void {
+  print(b);
+}
+
+
+
+                 """
+
+
+    interpreter = Interpreter()
+    interpreter.run(program)
+
+if __name__ == "__main__":
+    main()
