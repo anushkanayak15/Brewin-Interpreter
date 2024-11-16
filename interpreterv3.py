@@ -23,6 +23,8 @@ class Interpreter(InterpreterBase):
     TRUE_VALUE = create_value(InterpreterBase.TRUE_DEF)
     BIN_OPS = {"+", "-", "*", "/", "==", "!=", ">", ">=", "<", "<=", "||", "&&"}
     PRIM_TYPES = {"int", "bool", "string"} 
+    VALID_FUNCTION_RETURN_TYPES = {"int", "string", "bool", "void"}
+
 
     # methods
     def __init__(self, console_output=True, inp=None, trace_output=False):
@@ -197,40 +199,68 @@ class Interpreter(InterpreterBase):
         self.env.push_func()
         # and add the formal arguments to the activation record
         for arg_name, value in args.items():
-          self.env.create(arg_name, value)
+            self.env.create(arg_name, value)
+        # Set up a default return value
+        default_return = None
+        if return_type == Type.VOID:
+            default_return = Value(Type.VOID)
+        elif return_type == Type.INT:
+            default_return = Value(Type.INT, 0)  # Default value for int
+        elif return_type == Type.STRING:
+            default_return = Value(Type.STRING, "")  # Default value for string
+        elif return_type == Type.BOOL:
+            default_return = Value(Type.BOOL, False)  # Default value for bool
+        else:
+            # Raise an error for unsupported return types
+            super().error(ErrorType.TYPE_ERROR, f"Unsupported return type: {return_type}")
+
         # Execute function body
-        _, return_val = self.__run_statements(func_ast.get("statements"))
+        _, return_val = self.__run_statements(func_ast.get("statements"), default_return)
         self.env.pop_func()
         #print(f"Function '{func_name}' is a void function with return type '{return_type}'")
         #print(f"Return value: {return_val} (type: {return_val.type() if return_val is not None else 'None'})")
         # Handle void function return type constraints
-
-        # # Handle void functions
+        # Handle void functions
+        
         # if return_type == Type.VOID:
         #     if return_val is not None:
         #         super().error(ErrorType.TYPE_ERROR, f"Void function '{func_name}' should not return a value")
-        #     return None  # Void functions return nothing
-        
+        #     return None  
+            
         # Ensure a default value for non-void functions if no return was explicitly provided
         if return_val is None:
-            default_value = Value(return_val)
-            return_val = Value(default_value)  # Default to the type's default value
+            
+            return_val = Value(return_type)  # Default to the type's default value
             
         # Coerce return value if function return type is bool and return_val is int
         if return_type == Type.BOOL and return_val.type() == Type.INT:
             return_val = self.__coerce_to_bool(return_val)
         
+        if return_val.type() != return_type:
+            super().error(ErrorType.TYPE_ERROR, "Return type mismatch")
         
         return return_val
+        # if return_type== Type.VOID:
+        #     return
+        # else: 
+        #     return return_val
 #try to get a fefault_return that returns a value object setting the value with its defualt using the default func in typeval2
 #pass that default returnr to run statements and then run statement in which we pass that to do return. in do return we use that
 # it either has an expression node or not. if it has an expression node and return type is none then we raise an error
     
     def __call_print(self, args):
+        #if it is printable then we print. if is fields of an object then you can print you cant print the object itself
+        # if it is not printable raise an error and check that you cant print void. 
         output = ""
         for arg in args:
-            result = self.__eval_expr(arg)  # result is a Value object
-            output = output + get_printable(result)
+            result = self.__eval_expr(arg) 
+            printable_result = get_printable(result)
+
+        # If the value is void or non-printable, raise an error
+            if printable_result is None:
+                super().error(ErrorType.TYPE_ERROR, "Cannot print void or non-printable value.")
+
+            output += printable_result
         super().output(output)
         #return Interpreter.NIL_VALUE
 
@@ -561,23 +591,37 @@ class Interpreter(InterpreterBase):
         #func_return_type = self.env.get("current_return_type")
         # Void function should not return a value
         # Ensure default_type is valid
+        #print("default type in do return")
+       # print(default_type)
         if default_type is None:
             super().error(ErrorType.TYPE_ERROR, "Return type is undefined")
-        if default_type == Type.VOID and expr_ast is not None:
-            super().error(ErrorType.TYPE_ERROR, "Void function cannot return a value")
-        
+        # TO DO:
+        if default_type == Type.VOID:
+            if expr_ast is not None:
+                super().error(ErrorType.TYPE_ERROR, "Void function cannot return a value")
+            return (ExecStatus.RETURN, None)
         if expr_ast is None:
             #print("Void return statement encountered")
             #return (ExecStatus.RETURN, Interpreter.NIL_VALUE)
+            if default_type == Type.VOID:
+                return (ExecStatus.RETURN, None)
             return (ExecStatus.RETURN, default_type)
+        
         value_obj = copy.copy(self.__eval_expr(expr_ast))
         # Coerce if function return type is bool and return value is int
-        func_return_type = self.env.get("current_return_type")
+        if default_type == Type.VOID:
+            func_return_type = Type.VOID  # Explicitly set the function return type to void
+        else:
+            func_return_type = default_type.type()  # Access the type from the Value object if not void#wont work when default return is void. add an if before this
+        #because if it is void it is just string. right now if we try to access the type it assumes it ias an object. 
+        #if default type is void funcreturntype is void
+        #print(f"DEBUG: func_return_type = {func_return_type}")
         if func_return_type == Type.BOOL and value_obj.type() == Type.INT:
             value_obj = self.__coerce_to_bool(value_obj)
         
-        if default_type() != value_obj.type():
-            super().error(ErrorType.TYPE_ERROR, "Return type mismatch")
+        if default_type != Type.VOID and default_type.type() != value_obj.type():
+            #print(f"DEBUG: Type mismatch - Expected: {default_type}, Found: {value_obj.type()}")
+            super().error(ErrorType.TYPE_ERROR, "Return type mismatch") #handle void case and structs
 
         return (ExecStatus.RETURN, value_obj)
     
@@ -589,27 +633,16 @@ class Interpreter(InterpreterBase):
         
 def main():
     program = """
-struct animal {
-    name : string;
-    noise : string;
-    color : string;
-    extinct : bool;
-    ears: int; 
+func return_bool() : bool {
+  var int_var: int;
+  int_var = -1;
+  return int_var;
 }
+
 func main() : void {
-   var pig : animal;
-   var extinct : bool;
-   extinct = make_pig(pig, 0);
-   print(extinct);
+  print(return_bool());
 }
-func make_pig(a : animal, extinct : int) : bool{
-  if (a == nil){
-    print("making a pig");
-    a = new animal;
-  }
-  a.extinct = extinct;
-  return a.extinct;
-}
+
                  """
 
 
