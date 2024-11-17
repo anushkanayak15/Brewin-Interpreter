@@ -243,8 +243,8 @@ class Interpreter(InterpreterBase):
             
         # Ensure a default value for non-void functions if no return was explicitly provided
         if return_val is None:
-            
-            return_val = Value(return_type)  # Default to the type's default value
+            return_val = default_return
+            #return_val = Value(return_type)  # Default to the type's default value
             
         # Coerce return value if function return type is bool and return_val is int
         if return_type == Type.BOOL and return_val.type() == Type.INT:
@@ -356,6 +356,11 @@ class Interpreter(InterpreterBase):
             # Handle base object nil or missing errors
             if obj is None:
                 super().error(ErrorType.NAME_ERROR, f"Variable '{fields[0]}' not found")
+            if obj.type() not in self.user_types_fields:
+                super().error(
+                    ErrorType.TYPE_ERROR,
+                    f"Cannot access fields of a non-struct type '{obj.type()}'"
+                )
             if obj.type() == Type.NIL:
                 super().error(ErrorType.FAULT_ERROR, f"Variable '{fields[0]}' is nil")
 
@@ -366,7 +371,8 @@ class Interpreter(InterpreterBase):
             while len(fields) > 0:
                 field = fields.pop(0)
                 # Validate object before accessing its fields
-                if obj is None or obj.name is None:
+                if obj is None :
+                #if obj is None    or obj.name is None
                     super().error(ErrorType.FAULT_ERROR, f"Field chain leads to nil or uninitialized object")
 
                 if field not in self.user_types_fields[obj.name]: #this is causing error
@@ -429,6 +435,7 @@ class Interpreter(InterpreterBase):
                         f"Type mismatch: cannot assign {value_obj.type()} to {current_value_obj.type()} in '{var_name}'",
                     )
             self.env.set(var_name, value_obj)
+    
 
 
 
@@ -801,27 +808,25 @@ class Interpreter(InterpreterBase):
         
 def main():
     program = """
-func main() : void {
-  var n : int;
-  n = inputi("Enter a number: ");
-  print(fact(n));
+struct p {
+  a:int;
 }
 
-func fact(n : int) : int {
-  if (n <= 1) { return 1; }
-  return n * fact(n-1);
+struct b {
+  asdf: int;
 }
 
+func main(): void {
+  var x: int;
+  x.b.a = 2;
+}
 
 /*
-*IN*
-5
-*IN*
 *OUT*
-Enter a number: 
-120
+ErrorType.TYPE_ERROR
 *OUT*
 */
+
        """
 
 
