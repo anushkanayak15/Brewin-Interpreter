@@ -344,7 +344,7 @@ class Interpreter(InterpreterBase):
                 super().error(ErrorType.FAULT_ERROR, f"Variable '{fields[0]}' is nil")
 
             # Extract the UserObject from the Value
-            obj = obj.value()
+            obj = obj.value() #THIS OBJECT SH
 
             fields.pop(0)  # Remove the base object from the field chain
             while len(fields) > 0:
@@ -454,7 +454,7 @@ class Interpreter(InterpreterBase):
                 obj = self.env.get(fields[0])  # Get the base object
 
                 # Handle base object nil or missing errors
-                if obj is None:
+                if obj is None: # TO DO
                     super().error(ErrorType.NAME_ERROR, f"Variable '{fields[0]}' not found")
                 if obj.type() == Type.NIL:
                     super().error(ErrorType.FAULT_ERROR, f"Variable '{fields[0]}' is nil")
@@ -516,7 +516,7 @@ class Interpreter(InterpreterBase):
     def __eval_op(self, arith_ast):
         left_value_obj = self.__eval_expr(arith_ast.get("op1"))
         right_value_obj = self.__eval_expr(arith_ast.get("op2"))
-
+#WHEN TYPE IS IN THE USER DEFINED TYPE AND THE VALUE IS NONE AND THE OTHER OPERATOR TYPE IS NIL IT SHOULD ALLOW == AND =!
         # Check if any operand is of type 'void'
         if left_value_obj.type() == Type.VOID or right_value_obj.type() == Type.VOID:
             super().error(ErrorType.TYPE_ERROR, "Cannot perform operations on 'void' type")
@@ -531,6 +531,18 @@ class Interpreter(InterpreterBase):
         # Also handle coercion for equality comparisons, allowing int-to-bool comparison
         elif arith_ast.elem_type in {"==", "!="}:
             if left_value_obj.type() in self.default_user_types.keys() or right_value_obj.type() in self.default_user_types.keys():
+                if left_value_obj.type() == Type.NIL or  right_value_obj.type()== Type.NIL:
+                    if left_value_obj.type() == Type.NIL and right_value_obj.type() in self.default_user_types.keys() and right_value_obj.value() == None:
+                        if arith_ast.elem_type in {"=="}:
+                            return Value(Type.BOOL, True)
+                        else:
+                            return Value(Type.BOOL, False)
+                    elif right_value_obj.type() == Type.NIL and left_value_obj.type() in self.default_user_types.keys() and left_value_obj.value() == None:
+                        if arith_ast.elem_type in {"=="}:
+                            return Value(Type.BOOL, True)
+                        else:
+                            return Value(Type.BOOL, False)
+                
                 if left_value_obj.type() != right_value_obj.type():
                     return Value(Type.BOOL, False)
                 if left_value_obj.type() == Type.INT and right_value_obj.type() == Type.BOOL:
@@ -756,12 +768,23 @@ struct animal {
 }
 func main() : void {
    var pig : animal;
-   pig.noise = "oink";
+   var noise : string;
+   noise = make_pig(pig);
+   print(noise);
+}
+func make_pig(a : animal) : string{
+  if (a == nil){
+    print("making a pig");
+    a = new animal;
+  }
+  a.noise = "oink";
+  return a.noise;
 }
 
 /*
 *OUT*
-ErrorType.FAULT_ERROR
+making a pig
+oink
 *OUT*
 */
                """
