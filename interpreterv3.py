@@ -546,6 +546,11 @@ class Interpreter(InterpreterBase):
         
         # Also handle coercion for equality comparisons, allowing int-to-bool comparison
         elif arith_ast.elem_type in {"==", "!="}:
+            # Handle int-to-bool coercion
+            if left_value_obj.type() == Type.INT and right_value_obj.type() == Type.BOOL:
+                left_value_obj = self.__coerce_to_bool(left_value_obj)
+            elif left_value_obj.type() == Type.BOOL and right_value_obj.type() == Type.INT:
+                right_value_obj = self.__coerce_to_bool(right_value_obj)
             if left_value_obj.type() in self.default_user_types.keys() or right_value_obj.type() in self.default_user_types.keys():
                 if left_value_obj.type() == Type.NIL or  right_value_obj.type()== Type.NIL:
                     if left_value_obj.type() == Type.NIL and right_value_obj.type() in self.default_user_types.keys() and right_value_obj.value() == None:
@@ -709,13 +714,13 @@ class Interpreter(InterpreterBase):
         update_ast = for_ast.get("update") 
 
         if init_ast:
-            print(f"Initializing for-loop: {init_ast}")
+            #print(f"Initializing for-loop: {init_ast}")
             self.__run_statement(init_ast, Interpreter.NIL_VALUE)  # TO DO CHECK HOW JENNIFER INITIALIZES IT HERE
         run_for = Interpreter.TRUE_VALUE
         while run_for.value():
             run_for = self.__eval_expr(cond_ast)  # check for-loop condition
             run_for = self.__coerce_to_bool(run_for)  # Coerce if condition is int
-            print(f"Loop condition evaluated to: {run_for.value()}")
+            #print(f"Loop condition evaluated to: {run_for.value()}")
             if run_for.type() != Type.BOOL:
                 super().error(
                     ErrorType.TYPE_ERROR,
@@ -765,9 +770,15 @@ class Interpreter(InterpreterBase):
         #print(f"DEBUG: func_return_type = {func_return_type}")
         if func_return_type == Type.BOOL and value_obj.type() == Type.INT:
             value_obj = self.__coerce_to_bool(value_obj)
+        
         if default_type.type() == Type.NIL:
-            if default_type.value() != value_obj.type():
-                super().error(ErrorType.TYPE_ERROR, "Return type mismatch") 
+            # Allow `nil` for user-defined struct types
+            if default_type.value() in self.user_types_fields and value_obj.type() == Type.NIL:
+                # Ensure the returned `nil` matches the expected struct type
+                return (ExecStatus.RETURN, value_obj)
+            elif default_type.value() != value_obj.type():
+                super().error(ErrorType.TYPE_ERROR, "Return type mismatch")
+
         elif default_type != Type.VOID and default_type.type() != value_obj.type(): #THIS IS THE SOURCE OF ERROR
             #print(f"DEBUG: Type mismatch - Expected: {default_type}, Found: {value_obj.type()}")
             super().error(ErrorType.TYPE_ERROR, "Return type mismatch") #handle void case and structs
@@ -782,18 +793,39 @@ class Interpreter(InterpreterBase):
         
 def main():
     program = """
-struct Person {
-  name : string;
-  alive : bool;
-  age: int; 
-}
-
 func main() : void {
-  var a: Person;
-    var a = new Person;
-  a = nil;  /* see what happens */
+  var int_var: int;
+  var bool_var: bool;
+
+  int_var = 5;
+  bool_var = true;
+  
+  if (int_var == bool_var) {
+    print("5 == true is true"); 
+  }
+
+  int_var = 0;
+  if (int_var == false) {
+    print("0 == false is true"); 
+  }
+
+  if (5 != false) {
+    print("5 != false is true"); 
+    }
+
+  if (0 != true) {
+    print("0 != true is true");  
+    }
 }
-               """
+/*
+*OUT*
+5 == true is true
+0 == false is true
+5 != false is true
+0 != true is true
+*OUT*
+*/
+       """
 
 
     interpreter = Interpreter()
