@@ -219,7 +219,7 @@ class Interpreter(InterpreterBase):
             default_return = Value(Type.BOOL, False)  # Default value for bool
         elif return_type in self.default_user_types:
         # Struct types return nil by default
-            default_return = Value(Type.NIL)
+            default_return = Value(Type.NIL, return_type)
         else:
             # Raise an error for unsupported return types
             super().error(ErrorType.TYPE_ERROR, f"Unsupported return type: {return_type}")
@@ -744,8 +744,10 @@ class Interpreter(InterpreterBase):
         #print(f"DEBUG: func_return_type = {func_return_type}")
         if func_return_type == Type.BOOL and value_obj.type() == Type.INT:
             value_obj = self.__coerce_to_bool(value_obj)
-        
-        if default_type != Type.VOID and default_type.type() != value_obj.type():
+        if default_type.type() == Type.NIL:
+            if default_type.value() != value_obj.type():
+                super().error(ErrorType.TYPE_ERROR, "Return type mismatch") 
+        elif default_type != Type.VOID and default_type.type() != value_obj.type(): #THIS IS THE SOURCE OF ERROR
             #print(f"DEBUG: Type mismatch - Expected: {default_type}, Found: {value_obj.type()}")
             super().error(ErrorType.TYPE_ERROR, "Return type mismatch") #handle void case and structs
 
@@ -759,34 +761,24 @@ class Interpreter(InterpreterBase):
         
 def main():
     program = """
-struct animal {
-    name : string;
-    noise : string;
-    color : string;
-    extinct : bool;
-    ears: int; 
-}
-func main() : void {
-   var pig : animal;
-   var noise : string;
-   noise = make_pig(pig);
-   print(noise);
-}
-func make_pig(a : animal) : string{
-  if (a == nil){
-    print("making a pig");
-    a = new animal;
-  }
-  a.noise = "oink";
-  return a.noise;
+struct dog {
+ bark: int;
+ bite: int;
 }
 
-/*
-*OUT*
-making a pig
-oink
-*OUT*
-*/
+func foo(d: dog) : dog {  /* d holds the same object reference that the koda variable holds */
+  d.bark = 10;
+  return d;  		/* this returns the same object reference that the koda variable holds */
+}
+
+ func main() : void {
+  var koda: dog;
+  var kippy: dog;
+  koda = new dog;
+  kippy = foo(koda);	/* kippy holds the same object reference as koda */
+  kippy.bite = 20;
+  print(koda.bark, " ", koda.bite); /* prints 10 20 */
+}
                """
 
 
