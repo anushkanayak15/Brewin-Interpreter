@@ -30,6 +30,7 @@ class EnvironmentManager:
             return False
         cur_func_env[-1][symbol] = value
         return True
+    #THIS SHOULD HANDLE TYPE CHECKING AND USER TYPES
 
     # used when we enter a new function - start with empty dictionary to hold parameters.
     def push_func(self):
