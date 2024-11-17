@@ -106,19 +106,26 @@ class UserObject:
         Set a value to a field.
         Args:
             field_name (str): The name of the field to set.
-            value: The value to assign to the field.
+            value (Value): The value to assign to the field.
             existing_user_types (list): List of valid struct types for validation.
         """
         if field_name not in self.v:
             return False  # Field doesn't exist
 
-        # Check for type mismatch
-        field_type = type(self.v[field_name]).__name__
-        if field_type not in ["int", "bool", "str", "NoneType"] and field_type not in existing_user_types:
-            return False
+        # Retrieve the expected field type
+        expected_type = self.v[field_name].type()
 
+        # Check for type mismatch
+        if expected_type not in ["int", "bool", "string", "nil"] and expected_type not in existing_user_types:
+            return False  # Invalid or unknown type
+        
+        if expected_type != value.type():
+            return False  # Type mismatch
+
+        # Assign the value to the field
         self.v[field_name] = value
         return True
+
 
     def get_val(self, field_name):
         """
