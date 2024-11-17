@@ -290,9 +290,14 @@ class Interpreter(InterpreterBase):
                 super().error(ErrorType.TYPE_ERROR, "Cannot print void value.")
             
             # Handle user-defined structures
-            if result.type() in self.default_user_types or result.type() == Type.NIL:
+            if result.type() in self.default_user_types and result.value() == None: #I WILL HAVE TO CHANGE THIS
+
+                output.append("nil")
+
+            elif result.type() in self.default_user_types or result.type() == Type.NIL:
                 # Print "nil" if the value is nil (uninitialized)
-                if result.type() == Type.NIL:
+                
+                if result.type() == Type.NIL: 
                     output.append("nil")
                 else:
                     # Raise an error if attempting to print the entire structure
@@ -761,23 +766,17 @@ class Interpreter(InterpreterBase):
         
 def main():
     program = """
-struct dog {
- bark: int;
- bite: int;
+struct node {
+  value: int;
+  next: node;
 }
 
-func foo(d: dog) : dog {  /* d holds the same object reference that the koda variable holds */
-  d.bark = 10;
-  return d;  		/* this returns the same object reference that the koda variable holds */
-}
-
- func main() : void {
-  var koda: dog;
-  var kippy: dog;
-  koda = new dog;
-  kippy = foo(koda);	/* kippy holds the same object reference as koda */
-  kippy.bite = 20;
-  print(koda.bark, " ", koda.bite); /* prints 10 20 */
+func main() : void {
+  var n : node;
+  print(n);
+  n = new node;
+  print(n.value);
+  print(n.next);
 }
                """
 
