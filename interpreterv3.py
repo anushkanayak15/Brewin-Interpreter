@@ -35,7 +35,7 @@ class Interpreter(InterpreterBase):
         self.user_types_fields= {}
         self.__setup_ops()
         
-        print("DEBUG: Initialized default_user_types")
+        #print("DEBUG: Initialized default_user_types")
 
     # run a program that's provided in a string
     # usese the provided Parser found in brewparse.py to parse the program
@@ -192,9 +192,14 @@ class Interpreter(InterpreterBase):
                 #print("in call func aux before param coerce to bool")
                 result = self.__coerce_to_bool(result)
             
+            # Validate argument type
             if result.type() != arg_type:
-                super().error(ErrorType.TYPE_ERROR, f"Type mismatch for argument {arg_name} in function {func_name}")
-        
+                if result.type() not in self.default_user_types or result.type() != arg_type:
+                    super().error(
+                        ErrorType.TYPE_ERROR,
+                        f"Type mismatch for argument {arg_name} in function {func_name}",
+                    )
+
             args[arg_name] = result
 
         # then create the new activation record 
@@ -212,6 +217,9 @@ class Interpreter(InterpreterBase):
             default_return = Value(Type.STRING, "")  # Default value for string
         elif return_type == Type.BOOL:
             default_return = Value(Type.BOOL, False)  # Default value for bool
+        elif return_type in self.default_user_types:
+        # Struct types return nil by default
+            default_return = Value(Type.NIL)
         else:
             # Raise an error for unsupported return types
             super().error(ErrorType.TYPE_ERROR, f"Unsupported return type: {return_type}")
@@ -232,7 +240,15 @@ class Interpreter(InterpreterBase):
             return_val = self.__coerce_to_bool(return_val)
         
         if return_val.type() != return_type:
-            super().error(ErrorType.TYPE_ERROR, "Return type mismatch")
+            # Allow nil as a valid return value for user-defined structs
+            if return_val.type() == Type.NIL and return_type in self.default_user_types:
+                return return_val  # No error, nil is valid for struct types
+            
+            # If it's not nil or doesn't match the user-defined struct, raise an error
+            if return_val.type() not in self.default_user_types or return_val.type() != return_type:
+                super().error(ErrorType.TYPE_ERROR, "Return type mismatch")
+
+
         
         return return_val
         # if return_type== Type.VOID:
@@ -243,21 +259,60 @@ class Interpreter(InterpreterBase):
 #pass that default returnr to run statements and then run statement in which we pass that to do return. in do return we use that
 # it either has an expression node or not. if it has an expression node and return type is none then we raise an error
     
+    # def __call_print(self, args):
+    #     #if it is printable then we print. if is fields of an object then you can print you cant print the object itself
+    #     # if it is not printable raise an error and check that you cant print void. 
+    #     output = ""
+    #     for arg in args:
+    #         result = self.__eval_expr(arg) 
+    #         printable_result = get_printable(result)
+
+    #     # If the value is void or non-printable, raise an error
+    #         if printable_result is None:
+    #             super().error(ErrorType.TYPE_ERROR, "Cannot print void or non-printable value.")
+
+    #         output += printable_result
+    #     super().output(output)
+    
     def __call_print(self, args):
-        #if it is printable then we print. if is fields of an object then you can print you cant print the object itself
-        # if it is not printable raise an error and check that you cant print void. 
-        output = ""
+        """
+        Handles the print function by evaluating expressions and printing their values.
+        Properly handles void values, user-defined structures, and nil.
+        """
+        output = []
+        
         for arg in args:
-            result = self.__eval_expr(arg) 
-            printable_result = get_printable(result)
+            # Evaluate the expression
+            result = self.__eval_expr(arg)
+            
+            # Handle void values: cannot be printed
+            if result.type() == Type.VOID:
+                super().error(ErrorType.TYPE_ERROR, "Cannot print void value.")
+            
+            # Handle user-defined structures
+            if result.type() in self.default_user_types or result.type() == Type.NIL:
+                # Print "nil" if the value is nil (uninitialized)
+                if result.type() == Type.NIL:
+                    output.append("nil")
+                else:
+                    # Raise an error if attempting to print the entire structure
+                    super().error(
+                        ErrorType.TYPE_ERROR,
+                        f"Cannot print entire user-defined structure of type {result.type()}. Access specific fields instead."
+                    )
+            else:
+                # Get printable representation for primitive types
+                printable_result = get_printable(result)
+                #print(printable_result)
+                # If the value is non-printable, raise an error
+                if printable_result is None:
+                    super().error(ErrorType.TYPE_ERROR, "Cannot print non-printable value.")
 
-        # If the value is void or non-printable, raise an error
-            if printable_result is None:
-                super().error(ErrorType.TYPE_ERROR, "Cannot print void or non-printable value.")
+                output.append(printable_result)
+        
+        # Join all outputs with a space and send to the output stream
+        super().output(" ".join(output))
 
-            output += printable_result
-        super().output(output)
-        #return Interpreter.NIL_VALUE
 
     def __call_input(self, name, args):
         if args is not None and len(args) == 1:
@@ -688,25 +743,28 @@ class Interpreter(InterpreterBase):
         
 def main():
     program = """
-struct Person {
-  name: string;
-  age: int;
-  student: bool;
+struct animal {
+    name : string;
+    noise : string;
+    color : string;
+    extinct : bool;
+    ears: int; 
 }
-
 func main() : void {
-  var p: Person;
-  p = new Person;
-  p.name = "Carey";
-  p.age = 21;
-  p.student = false;
-  foo(p);
+   var pig : animal;
+   var extinct : bool;
+   extinct = make_pig(pig, 0);
+   print(extinct);
 }
-
-func foo(p : Person) : void {
-  print(p.name, " is ", p.age, " years old.");
+func make_pig(a : animal, extinct : int) : bool{
+  if (a == nil){
+    print("making a pig");
+    a = new animal;
+  }
+  a.extinct = extinct;
+  return a.extinct;
 }
-                 """
+               """
 
 
     interpreter = Interpreter()
