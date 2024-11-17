@@ -192,12 +192,23 @@ class Interpreter(InterpreterBase):
                 #print("in call func aux before param coerce to bool")
                 result = self.__coerce_to_bool(result)
             
-            # Validate argument type
+            # # Validate argument type
+            # if result.type() != arg_type:
+            #     if result.type() not in self.default_user_types or result.type() != arg_type:
+            #         super().error(
+            #             ErrorType.TYPE_ERROR,
+            #             f"Type mismatch for argument {arg_name} in function {func_name}",
+            #         )
             if result.type() != arg_type:
-                if result.type() not in self.default_user_types or result.type() != arg_type:
+                # Allow `nil` for user-defined struct types
+                if result.type() == Type.NIL and arg_type in self.default_user_types:
+                    # Preserve the type signature for the `nil` value
+                    result = Value(arg_type, None)
+                else:
                     super().error(
                         ErrorType.TYPE_ERROR,
-                        f"Type mismatch for argument {arg_name} in function {func_name}",
+                        f"Type mismatch for argument {arg_name} in function {func_name}: "
+                        f"expected {arg_type}, got {result.type()}",
                     )
 
             args[arg_name] = result
@@ -766,17 +777,16 @@ class Interpreter(InterpreterBase):
         
 def main():
     program = """
-struct node {
-  value: int;
-  next: node;
+struct a {
+  name : string;
 }
 
 func main() : void {
-  var n : node;
-  print(n);
-  n = new node;
-  print(n.value);
-  print(n.next);
+  foo(nil);
+}
+
+func foo(a : a) : void {
+  print("hi");
 }
                """
 
