@@ -436,10 +436,6 @@ class Interpreter(InterpreterBase):
                     )
             self.env.set(var_name, value_obj)
     
-
-
-
-
     
     def __var_def(self, var_ast):
         # initialize with default values and validate type
@@ -565,6 +561,9 @@ class Interpreter(InterpreterBase):
                 left_value_obj = self.__coerce_to_bool(left_value_obj)
             elif left_value_obj.type() == Type.BOOL and right_value_obj.type() == Type.INT:
                 right_value_obj = self.__coerce_to_bool(right_value_obj)
+            if left_value_obj.type() in self.default_user_types.keys() and right_value_obj.type() in self.default_user_types.keys():
+                if left_value_obj.type() != right_value_obj.type():
+                    super().error(ErrorType.TYPE_ERROR, "Cannot compare structs of different types.")
             if left_value_obj.type() in self.default_user_types.keys() or right_value_obj.type() in self.default_user_types.keys():
                 if left_value_obj.type() == Type.NIL or  right_value_obj.type()== Type.NIL:
                     if left_value_obj.type() == Type.NIL and right_value_obj.type() in self.default_user_types.keys() and right_value_obj.value() == None:
@@ -808,17 +807,22 @@ class Interpreter(InterpreterBase):
         
 def main():
     program = """
-struct p {
-  a:int;
+struct circle{
+  r: int;
 }
 
-struct b {
-  asdf: int;
+struct square {
+  s: int;
 }
 
-func main(): void {
-  var x: int;
-  x.b.a = 2;
+
+func main(): void{
+  var c: circle;
+  var s: square;
+
+  s = new square;
+  c = new circle;
+  print(c == s);
 }
 
 /*
@@ -826,6 +830,9 @@ func main(): void {
 ErrorType.TYPE_ERROR
 *OUT*
 */
+
+
+
 
        """
 
