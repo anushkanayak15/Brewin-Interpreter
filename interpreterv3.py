@@ -538,7 +538,7 @@ class Interpreter(InterpreterBase):
             super().error(ErrorType.TYPE_ERROR, "Cannot perform operations on 'void' type")
 
         
-        print(f"DEBUG: Evaluating operation {arith_ast.elem_type} with types {left_value_obj.type()} and {right_value_obj.type()}")
+        #print(f"DEBUG: Evaluating operation {arith_ast.elem_type} with types {left_value_obj.type()} and {right_value_obj.type()}")
         # Coerce both operands to boolean if the operation is logical (&& or ||)
         if arith_ast.elem_type in {"&&", "||"}:
             left_value_obj = self.__coerce_to_bool(left_value_obj)
@@ -708,11 +708,14 @@ class Interpreter(InterpreterBase):
         cond_ast = for_ast.get("condition")
         update_ast = for_ast.get("update") 
 
-        self.__run_statement(init_ast)  # initialize counter variable
+        if init_ast:
+            print(f"Initializing for-loop: {init_ast}")
+            self.__run_statement(init_ast, Interpreter.NIL_VALUE)  # TO DO CHECK HOW JENNIFER INITIALIZES IT HERE
         run_for = Interpreter.TRUE_VALUE
         while run_for.value():
             run_for = self.__eval_expr(cond_ast)  # check for-loop condition
             run_for = self.__coerce_to_bool(run_for)  # Coerce if condition is int
+            print(f"Loop condition evaluated to: {run_for.value()}")
             if run_for.type() != Type.BOOL:
                 super().error(
                     ErrorType.TYPE_ERROR,
@@ -723,7 +726,9 @@ class Interpreter(InterpreterBase):
                 status, return_val = self.__run_statements(statements)
                 if status == ExecStatus.RETURN:
                     return status, return_val
-                self.__run_statement(update_ast)  # update counter variable
+                if update_ast:
+                    self.__run_statement(update_ast, Interpreter.NIL_VALUE)
+                #self.__run_statement(update_ast,None)  # update counter variable
 
         return (ExecStatus.CONTINUE, Interpreter.NIL_VALUE)
 
@@ -777,16 +782,16 @@ class Interpreter(InterpreterBase):
         
 def main():
     program = """
-struct a {
+struct Person {
   name : string;
+  alive : bool;
+  age: int; 
 }
 
 func main() : void {
-  foo(nil);
-}
-
-func foo(a : a) : void {
-  print("hi");
+  var a: Person;
+    var a = new Person;
+  a = nil;  /* see what happens */
 }
                """
 
