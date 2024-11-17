@@ -30,10 +30,12 @@ class Interpreter(InterpreterBase):
     def __init__(self, console_output=True, inp=None, trace_output=False):
         super().__init__(console_output, inp)
         self.trace_output = trace_output
-        self.__setup_ops()
-        self.default_user_types= {}
+        self.default_user_types = {}
         self.valid_user_types_names= []
         self.user_types_fields= {}
+        self.__setup_ops()
+        
+        print("DEBUG: Initialized default_user_types")
 
     # run a program that's provided in a string
     # usese the provided Parser found in brewparse.py to parse the program
@@ -219,13 +221,6 @@ class Interpreter(InterpreterBase):
         self.env.pop_func()
         #print(f"Function '{func_name}' is a void function with return type '{return_type}'")
         #print(f"Return value: {return_val} (type: {return_val.type() if return_val is not None else 'None'})")
-        # Handle void function return type constraints
-        # Handle void functions
-        
-        # if return_type == Type.VOID:
-        #     if return_val is not None:
-        #         super().error(ErrorType.TYPE_ERROR, f"Void function '{func_name}' should not return a value")
-        #     return None  
             
         # Ensure a default value for non-void functions if no return was explicitly provided
         if return_val is None:
@@ -280,80 +275,87 @@ class Interpreter(InterpreterBase):
 
     # Modify __assign to handle int to bool coercion by checking the current type via EnvironmentManager
     def __assign(self, assign_ast):
-        # If the variable name includes a dot operator
-        if "." in assign_ast.get("name"):
-            fields = assign_ast.get("name").split(".")  # Split by the dot operator
-            object_name = fields[0]  # The first part is the base object
-            field_chain = fields  # Remaining parts are the field chain
-
-            # Retrieve the base object
-            current_obj = self.env.get(object_name)
-
-            # Check if the base object exists
-            if current_obj is None:
-                super().error(ErrorType.NAME_ERROR, f"Undefined variable '{object_name}' in assignment")
-
-            # Traverse through the field chain
-            for field_name in field_chain[:-1]:
-                # Ensure the current object is of struct type
-                if current_obj.type() not in self.default_user_types:
-                    super().error(ErrorType.TYPE_ERROR, f"'{field_name}' is not a struct type")
-
-                # Ensure the current object is not nil
-                if current_obj.value() is None:
-                    super().error(ErrorType.FAULT_ERROR, f"Accessing field '{field_name}' of a nil object")
-
-                # Move to the next field in the chain
-                current_obj = current_obj.value().get_val(field_name)
-
-                # Ensure the next field exists
-                if current_obj is None:
-                    super().error(ErrorType.NAME_ERROR, f"Field '{field_name}' not found in the struct")
-
-            # At the last field in the chain
-            final_field_name = field_chain[-1]
-            # Perform type checking
-            field_type = self.user_types_fields[current_obj.type()][final_field_name]
-            value_obj = self.__eval_expr(assign_ast.get("expression"))
-
-            # Allow assigning nil to struct fields
-            if field_type in self.default_user_types and value_obj.type() == Type.NIL:
-                current_obj.value().set_val(final_field_name, value_obj)
-                return
-
-            # Ensure type compatibility
-            if field_type == Type.BOOL and value_obj.type() == Type.INT:
-                value_obj = self.__coerce_to_bool(value_obj)  # Coerce int -> bool
-            if field_type != value_obj.type():
-                super().error(
-                    ErrorType.TYPE_ERROR,
-                    f"Type mismatch: cannot assign {value_obj.type()} to {field_type} in field '{final_field_name}'",
-                )
-
-            # Set the value of the final field
-            current_obj.value().set_val(final_field_name, value_obj)
-            return
-        
         var_name = assign_ast.get("name")
         value_obj = self.__eval_expr(assign_ast.get("expression"))
-        current_value_obj = self.env.get(var_name)  # Retrieve the current variable's Value object
 
-        # Check if the variable exists
-        if current_value_obj is None:
-            super().error(ErrorType.NAME_ERROR, f"Undefined variable {var_name} in assignment")
+        if "." in var_name:
+            fields = var_name.split(".")
+            obj = self.env.get(fields[0])  # Get the base object
 
-        # Handle primitive type assignments
-        if current_value_obj.type() in self.PRIM_TYPES:
-            # Allow coercion for bool: int -> bool
-            if current_value_obj.type() == Type.BOOL and value_obj.type() == Type.INT:
-                value_obj = self.__coerce_to_bool(value_obj)
-            # Ensure types match after coercion
-            if current_value_obj.type() != value_obj.type():
-                super().error(
-                    ErrorType.TYPE_ERROR,
-                    f"Type mismatch: cannot assign {value_obj.type()} to {current_value_obj.type()} in '{var_name}'",
-                )
-        self.env.set(var_name, value_obj)
+            # Handle base object nil or missing errors
+            if obj is None:
+                super().error(ErrorType.NAME_ERROR, f"Variable '{fields[0]}' not found")
+            if obj.type() == Type.NIL:
+                super().error(ErrorType.FAULT_ERROR, f"Variable '{fields[0]}' is nil")
+
+            # Extract the UserObject from the Value
+            obj = obj.value()
+
+            fields.pop(0)  # Remove the base object from the field chain
+            while len(fields) > 0:
+                field = fields.pop(0)
+                if field not in self.user_types_fields[obj.name]:
+                    super().error(ErrorType.NAME_ERROR, f"Field '{field}' not found in struct '{obj.name}'")
+                
+                field_type = self.user_types_fields[obj.name][field]
+
+                if len(fields) == 0:  # If this is the last field
+                    if field_type in self.PRIM_TYPES:
+                        # Handle type coercion for primitive types
+                        if field_type == Type.BOOL and value_obj.type() == Type.INT:
+                            value_obj = self.__coerce_to_bool(value_obj)
+                        if field_type != value_obj.type():
+                            super().error(
+                                ErrorType.TYPE_ERROR,
+                                f"Type mismatch: cannot assign {value_obj.type()} to {field_type} in field '{field}'"
+                            )
+                    elif field_type in self.user_types_fields:  # Handle nested user-defined struct types
+                        if value_obj.type() != field_type and value_obj.type() != Type.NIL:
+                            super().error(
+                                ErrorType.TYPE_ERROR,
+                                f"Type mismatch: cannot assign {value_obj.type()} to {field_type} in field '{field}'"
+                            )
+                    else:
+                        super().error(
+                            ErrorType.TYPE_ERROR,
+                            f"Unknown field type '{field_type}' in struct '{obj.name}'"
+                        )
+
+                    # Assign the value to the field using `set_val`
+                    if not obj.set_val(field, value_obj, self.valid_user_types_names):
+                        super().error(ErrorType.NAME_ERROR, f"Failed to assign value to field '{field}'")
+                    return
+
+                # Move to the next nested object
+                obj = obj.get_val(field)
+                if obj is None or obj.type() == Type.NIL:
+                    super().error(ErrorType.FAULT_ERROR, f"Field '{field}' is nil or uninitialized")
+
+                # Extract the UserObject from the nested Value
+                obj = obj.value()
+
+        else:
+            # If no dot operator, handle simple variable assignment
+            current_value_obj = self.env.get(var_name)
+
+            # Check if the variable exists
+            if current_value_obj is None:
+                super().error(ErrorType.NAME_ERROR, f"Undefined variable '{var_name}' in assignment")
+
+            # Handle primitive type assignments
+            if current_value_obj.type() in self.PRIM_TYPES:
+                # Allow coercion for bool: int -> bool
+                if current_value_obj.type() == Type.BOOL and value_obj.type() == Type.INT:
+                    value_obj = self.__coerce_to_bool(value_obj)
+                # Ensure types match after coercion
+                if current_value_obj.type() != value_obj.type():
+                    super().error(
+                        ErrorType.TYPE_ERROR,
+                        f"Type mismatch: cannot assign {value_obj.type()} to {current_value_obj.type()} in '{var_name}'",
+                    )
+            self.env.set(var_name, value_obj)
+
+
 
 
     
@@ -384,12 +386,51 @@ class Interpreter(InterpreterBase):
             return Value(Type.STRING, expr_ast.get("val"))
         if expr_ast.elem_type == InterpreterBase.BOOL_NODE:
             return Value(Type.BOOL, expr_ast.get("val"))
+        
         if expr_ast.elem_type == InterpreterBase.VAR_NODE:
             var_name = expr_ast.get("name")
+            # Handle dotted variable names (field access)
+            if "." in var_name:
+                fields = var_name.split(".")
+                obj = self.env.get(fields[0])  # Get the base object
+
+                # Handle base object nil or missing errors
+                if obj is None:
+                    super().error(ErrorType.NAME_ERROR, f"Variable '{fields[0]}' not found")
+                if obj.type() == Type.NIL:
+                    super().error(ErrorType.FAULT_ERROR, f"Variable '{fields[0]}' is nil")
+
+                # Extract the UserObject from the Value
+                obj = obj.value()
+
+                fields.pop(0)  # Remove the base object from the field chain
+                while len(fields) > 0:
+                    field = fields.pop(0)
+                    if field not in self.user_types_fields[obj.name]:
+                        super().error(ErrorType.NAME_ERROR, f"Field '{field}' not found in struct '{obj.name}'")
+
+                    # Get the value of the current field
+                    obj = obj.get_val(field)
+                    if obj is None:
+                        super().error(ErrorType.NAME_ERROR, f"Field '{field}' not found")
+                    if obj.type() == Type.NIL and len(fields) > 0:
+                        super().error(ErrorType.FAULT_ERROR, f"Field '{field}' is nil or uninitialized")
+
+                    # If there are more fields, ensure the value is a UserObject
+                    if len(fields) > 0:
+                        if not isinstance(obj.value(), UserObject):
+                            super().error(ErrorType.TYPE_ERROR, f"Field '{field}' is not a struct type")
+                        obj = obj.value()  # Move to the next UserObject
+
+                # Return the resolved field value
+                return obj
+
+            # Handle simple variable access
             val = self.env.get(var_name)
             if val is None:
-                super().error(ErrorType.NAME_ERROR, f"Variable {var_name} not found")
+                super().error(ErrorType.NAME_ERROR, f"Variable '{var_name}' not found")
             return val
+        
         if expr_ast.elem_type == InterpreterBase.FCALL_NODE:
             return self.__call_func(expr_ast)
         if expr_ast.elem_type in Interpreter.BIN_OPS:
@@ -398,12 +439,17 @@ class Interpreter(InterpreterBase):
             return self.__eval_unary(expr_ast, Type.INT, lambda x: -1 * x)
         if expr_ast.elem_type == Interpreter.NOT_NODE:
             return self.__eval_unary(expr_ast, Type.BOOL, lambda x: not x)
+        
         if expr_ast.elem_type == "new":  # New struct instance
             struct_name = expr_ast.dict.get("var_type")  # Access the structure type from the 'var_type' key
-            if struct_name not in self.default_user_types:  # Check if the struct type is valid
+            if struct_name not in self.user_types_fields:
                 super().error(ErrorType.TYPE_ERROR, f"Undefined struct type {struct_name}")
-            # Create a new instance of the struct
-            new_instance = create_user_object(struct_name, self.user_types_fields[struct_name], self.valid_user_types_names)
+            # Transform self.user_types_fields[struct_name] into the expected list format
+            fields = [{"name": field_name, "var_type": field_type} 
+                    for field_name, field_type in self.user_types_fields[struct_name].items()]
+            new_instance = create_user_object(struct_name, fields, self.valid_user_types_names)
+            if not new_instance:
+                super().error(ErrorType.TYPE_ERROR, f"Failed to create instance of struct type {struct_name}")
             # Return the instance wrapped in a Value object
             return Value(struct_name, new_instance)
 
@@ -411,8 +457,13 @@ class Interpreter(InterpreterBase):
     def __eval_op(self, arith_ast):
         left_value_obj = self.__eval_expr(arith_ast.get("op1"))
         right_value_obj = self.__eval_expr(arith_ast.get("op2"))
+
+        # Check if any operand is of type 'void'
+        if left_value_obj.type() == Type.VOID or right_value_obj.type() == Type.VOID:
+            super().error(ErrorType.TYPE_ERROR, "Cannot perform operations on 'void' type")
+
         
-        
+        print(f"DEBUG: Evaluating operation {arith_ast.elem_type} with types {left_value_obj.type()} and {right_value_obj.type()}")
         # Coerce both operands to boolean if the operation is logical (&& or ||)
         if arith_ast.elem_type in {"&&", "||"}:
             left_value_obj = self.__coerce_to_bool(left_value_obj)
@@ -420,11 +471,14 @@ class Interpreter(InterpreterBase):
         
         # Also handle coercion for equality comparisons, allowing int-to-bool comparison
         elif arith_ast.elem_type in {"==", "!="}:
-            if left_value_obj.type() == Type.INT and right_value_obj.type() == Type.BOOL:
-                left_value_obj = self.__coerce_to_bool(left_value_obj)
-            elif left_value_obj.type() == Type.BOOL and right_value_obj.type() == Type.INT:
-                right_value_obj = self.__coerce_to_bool(right_value_obj)
-            
+            if left_value_obj.type() in self.default_user_types.keys() or right_value_obj.type() in self.default_user_types.keys():
+                if left_value_obj.type() != right_value_obj.type():
+                    return Value(Type.BOOL, False)
+                if left_value_obj.type() == Type.INT and right_value_obj.type() == Type.BOOL:
+                    left_value_obj = self.__coerce_to_bool(left_value_obj)
+                elif left_value_obj.type() == Type.BOOL and right_value_obj.type() == Type.INT:
+                    right_value_obj = self.__coerce_to_bool(right_value_obj)
+                
 
         if not self.__compatible_types(
             arith_ast.elem_type, left_value_obj, right_value_obj
@@ -535,6 +589,7 @@ class Interpreter(InterpreterBase):
         self.op_to_lambda[Type.NIL]["!="] = lambda x, y: Value(
             Type.BOOL, x.type() != y.type() or x.value() != y.value()
         )
+        
 
     def __do_if(self, if_ast):
         #print("in if block")
@@ -633,16 +688,24 @@ class Interpreter(InterpreterBase):
         
 def main():
     program = """
-func return_bool() : bool {
-  var int_var: int;
-  int_var = -1;
-  return int_var;
+struct Person {
+  name: string;
+  age: int;
+  student: bool;
 }
 
 func main() : void {
-  print(return_bool());
+  var p: Person;
+  p = new Person;
+  p.name = "Carey";
+  p.age = 21;
+  p.student = false;
+  foo(p);
 }
 
+func foo(p : Person) : void {
+  print(p.name, " is ", p.age, " years old.");
+}
                  """
 
 
