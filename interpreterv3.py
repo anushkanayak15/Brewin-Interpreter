@@ -219,7 +219,7 @@ class Interpreter(InterpreterBase):
         for arg_name, value in args.items():
             self.env.create(arg_name, value)
         # Set up a default return value
-        default_return = None
+        #default_return = None #fix this now
         if return_type == Type.VOID:
             default_return = Value(Type.VOID)
         elif return_type == Type.INT:
@@ -468,7 +468,7 @@ class Interpreter(InterpreterBase):
             if "." in var_name:
                 fields = var_name.split(".")
                 obj = self.env.get(fields[0])  # Get the base object
-
+                print(obj)
                 # Handle base object nil or missing errors
                 if obj is None: # TO DO
                     super().error(ErrorType.NAME_ERROR, f"Variable '{fields[0]}' not found")
@@ -752,6 +752,7 @@ class Interpreter(InterpreterBase):
         # Ensure default_type is valid
         #print("default type in do return")
        # print(default_type)
+        print(default_type)
         if default_type is None:
             super().error(ErrorType.TYPE_ERROR, "Return type is undefined")
         # TO DO:
@@ -800,35 +801,27 @@ class Interpreter(InterpreterBase):
         
 def main():
     program = """
-struct node {
-  value: int;
-  next: node;
+func main() : void {
+  var n : int;
+  n = inputi("Enter a number: ");
+  print(fact(n));
 }
 
-func main(): void {
-  var root: node;
-  var here: node;
-  root = new node;
-  here = root;
-  root.value = 21;
-  var i: int;
-  for (i = 20; i; i = i - 1) {
-    here = insert_node(here, i);
-  }
-
-  for (here = root; here != nil; here = here.next) {
-    print(here.value);
-  }
-  return;
+func fact(n : int) : int {
+  if (n <= 1) { return 1; }
+  return n * fact(n-1);
 }
 
-func insert_node(nd: node, val: int): node {
-  var new_nd: node;
-  new_nd = new node;
-  new_nd.value = val;
-  nd.next = new_nd;
-  return new_nd;
-}
+
+/*
+*IN*
+5
+*IN*
+*OUT*
+Enter a number: 
+120
+*OUT*
+*/
        """
 
 
