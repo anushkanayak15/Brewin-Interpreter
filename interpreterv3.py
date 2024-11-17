@@ -327,7 +327,7 @@ class Interpreter(InterpreterBase):
                 output.append(printable_result)
         
         # Join all outputs with a space and send to the output stream
-        super().output(" ".join(output))
+        super().output("".join(output))
 
 
     def __call_input(self, name, args):
@@ -474,13 +474,20 @@ class Interpreter(InterpreterBase):
                     super().error(ErrorType.NAME_ERROR, f"Variable '{fields[0]}' not found")
                 if obj.type() == Type.NIL:
                     super().error(ErrorType.FAULT_ERROR, f"Variable '{fields[0]}' is nil")
-
+                # Check if the base object is a primitive type
+                if obj.type() in self.PRIM_TYPES:
+                    super().error(
+                        ErrorType.TYPE_ERROR,
+                        f"Cannot access fields on a primitive type '{obj.type()}'"
+                    )
                 # Extract the UserObject from the Value
                 obj = obj.value()
 
                 fields.pop(0)  # Remove the base object from the field chain
                 while len(fields) > 0:
                     field = fields.pop(0)
+                    
+                    
                     if field not in self.user_types_fields[obj.name]:
                         super().error(ErrorType.NAME_ERROR, f"Field '{field}' not found in struct '{obj.name}'")
 
@@ -793,38 +800,35 @@ class Interpreter(InterpreterBase):
         
 def main():
     program = """
-func main() : void {
-  var int_var: int;
-  var bool_var: bool;
-
-  int_var = 5;
-  bool_var = true;
-  
-  if (int_var == bool_var) {
-    print("5 == true is true"); 
-  }
-
-  int_var = 0;
-  if (int_var == false) {
-    print("0 == false is true"); 
-  }
-
-  if (5 != false) {
-    print("5 != false is true"); 
-    }
-
-  if (0 != true) {
-    print("0 != true is true");  
-    }
+struct node {
+  value: int;
+  next: node;
 }
-/*
-*OUT*
-5 == true is true
-0 == false is true
-5 != false is true
-0 != true is true
-*OUT*
-*/
+
+func main(): void {
+  var root: node;
+  var here: node;
+  root = new node;
+  here = root;
+  root.value = 21;
+  var i: int;
+  for (i = 20; i; i = i - 1) {
+    here = insert_node(here, i);
+  }
+
+  for (here = root; here != nil; here = here.next) {
+    print(here.value);
+  }
+  return;
+}
+
+func insert_node(nd: node, val: int): node {
+  var new_nd: node;
+  new_nd = new node;
+  new_nd.value = val;
+  nd.next = new_nd;
+  return new_nd;
+}
        """
 
 
