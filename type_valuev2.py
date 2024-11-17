@@ -118,9 +118,9 @@ class UserObject:
         # Check for type mismatch
         if expected_type not in ["int", "bool", "string", "nil"] and expected_type not in existing_user_types:
             return False  # Invalid or unknown type
-        
-        if expected_type != value.type():
-            return False  # Type mismatch
+        if expected_type  in ["int", "bool", "string"]:
+            if expected_type != value.type():
+                return False  # Type mismatch
 
         # Assign the value to the field
         self.v[field_name] = value
