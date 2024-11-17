@@ -349,7 +349,11 @@ class Interpreter(InterpreterBase):
             fields.pop(0)  # Remove the base object from the field chain
             while len(fields) > 0:
                 field = fields.pop(0)
-                if field not in self.user_types_fields[obj.name]:
+                # Validate object before accessing its fields
+                if obj is None or obj.name is None:
+                    super().error(ErrorType.FAULT_ERROR, f"Field chain leads to nil or uninitialized object")
+
+                if field not in self.user_types_fields[obj.name]: #this is causing error
                     super().error(ErrorType.NAME_ERROR, f"Field '{field}' not found in struct '{obj.name}'")
                 
                 field_type = self.user_types_fields[obj.name][field]
@@ -752,18 +756,14 @@ struct animal {
 }
 func main() : void {
    var pig : animal;
-   var extinct : bool;
-   extinct = make_pig(pig, 0);
-   print(extinct);
+   pig.noise = "oink";
 }
-func make_pig(a : animal, extinct : int) : bool{
-  if (a == nil){
-    print("making a pig");
-    a = new animal;
-  }
-  a.extinct = extinct;
-  return a.extinct;
-}
+
+/*
+*OUT*
+ErrorType.FAULT_ERROR
+*OUT*
+*/
                """
 
 
