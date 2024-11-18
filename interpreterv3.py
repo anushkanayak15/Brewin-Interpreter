@@ -594,7 +594,10 @@ class Interpreter(InterpreterBase):
 
                 # Compare the struct values
                 return Value(Type.BOOL, operator == "==" and left_value_obj.value() == right_value_obj.value())
-
+            # Invalid comparison between nil and primitive types
+            if (left_value_obj.type() == Type.NIL and right_value_obj.type() in {Type.INT, Type.BOOL, Type.STRING}) or \
+            (right_value_obj.type() == Type.NIL and left_value_obj.type() in {Type.INT, Type.BOOL, Type.STRING}):
+                super().error(ErrorType.TYPE_ERROR, "Cannot compare 'nil' with a primitive type")
             # Allow int-to-bool coercion for equality
             if left_value_obj.type() == Type.INT and right_value_obj.type() == Type.BOOL:
                 left_value_obj = self.__coerce_to_bool(left_value_obj)
@@ -833,18 +836,15 @@ class Interpreter(InterpreterBase):
         
 def main():
     program = """
-struct A {
-  a:int;
-}
-
 func main() : void {
-  var a : A;
-  print(a.b);
+    var a : int;
+    a = 3;
+    print(a == nil);
 }
 
 /*
 *OUT*
-ErrorType.NAME_ERROR
+ErrorType.TYPE_ERROR
 *OUT*
 */
        """
