@@ -471,7 +471,7 @@ class Interpreter(InterpreterBase):
                 # Handle base object nil or missing errors
                 if obj is None: # TO DO
                     super().error(ErrorType.NAME_ERROR, f"Variable '{fields[0]}' not found")
-                if obj.type() == Type.NIL:
+                if obj.type() == Type.NIL or obj.value() is None :
                     super().error(ErrorType.FAULT_ERROR, f"Variable '{fields[0]}' is nil")
                 # Check if the base object is a primitive type
                 if obj.type() in self.PRIM_TYPES:
@@ -817,13 +817,18 @@ class Interpreter(InterpreterBase):
         
 def main():
     program = """
+struct A {
+  a:int;
+}
+
 func main() : void {
-  print(1 + print());
+  var a : A;
+  print(a.b);
 }
 
 /*
 *OUT*
-ErrorType.TYPE_ERROR
+ErrorType.NAME_ERROR
 *OUT*
 */
        """
