@@ -162,7 +162,7 @@ class Interpreter(InterpreterBase):
         
         if func_name == "print":
            self.__call_print(actual_args)
-           return 
+           return Value(Type.VOID)
         if func_name == "inputi" or func_name == "inputs":
             return self.__call_input(func_name, actual_args)
 
@@ -513,7 +513,12 @@ class Interpreter(InterpreterBase):
             return val
         
         if expr_ast.elem_type == InterpreterBase.FCALL_NODE:
-            return self.__call_func(expr_ast)
+            #return self.__call_func(expr_ast)
+            result = self.__call_func(expr_ast)
+            # Check if the result is void and used improperly in an expression
+            if result.type() == Type.VOID:
+                super().error(ErrorType.TYPE_ERROR, "Cannot use function with void return type in an expression")
+            return result
         if expr_ast.elem_type in Interpreter.BIN_OPS:
             return self.__eval_op(expr_ast)
         if expr_ast.elem_type == Interpreter.NEG_NODE:
@@ -813,16 +818,12 @@ class Interpreter(InterpreterBase):
 def main():
     program = """
 func main() : void {
-  var a: string;
-  print(a);
-  a = "it wasn't str arghhhh.";
-  print(a);
+  print(1 + print());
 }
 
 /*
 *OUT*
-
-it wasn't str arghhhh.
+ErrorType.TYPE_ERROR
 *OUT*
 */
        """
