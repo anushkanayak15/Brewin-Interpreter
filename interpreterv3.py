@@ -298,14 +298,10 @@ class Interpreter(InterpreterBase):
     #     super().output(output)
     
     def __call_print(self, args):
-        """
-        Handles the print function by evaluating expressions and printing their values.
-        Properly handles void values, user-defined structures, and nil.
-        """
+        
         output = []
         
         for arg in args:
-            # Evaluate the expression
             result = self.__eval_expr(arg)
             
             # Handle void values: cannot be printed
@@ -313,25 +309,25 @@ class Interpreter(InterpreterBase):
                 super().error(ErrorType.TYPE_ERROR, "Cannot print void value.")
             if result.type() == Type.STRING and result.value() is None:
                 output.append("")
+
             # Handle user-defined structures or nil values
             if result.type() in self.default_user_types and result.value() is None:  # Uninitialized
                 output.append("nil")
             elif result.type() == Type.NIL:
                 output.append("nil")
             elif result.type() in self.default_user_types:
-                # Raise an error if attempting to print the entire structure
+                #error if attempting to print the entire structure
                 super().error(
                     ErrorType.TYPE_ERROR,
                     f"Cannot print entire user-defined structure of type {result.type()}. Access specific fields instead."
                 )
             else:
-                # Get printable representation for primitive types
+                # printable representation for primitive types
                 printable_result = get_printable(result)
                 if printable_result is None:
                     super().error(ErrorType.TYPE_ERROR, "Cannot print non-printable value.")
                 else:
                     output.append(str(printable_result))  # Ensure conversion to string
-        
         # Join all outputs with a space and send to the output stream
         try:
             super().output("".join(output))
@@ -416,28 +412,28 @@ class Interpreter(InterpreterBase):
                             f"Unknown field type '{field_type}' in struct '{obj.name}'"
                         )
 
-                    # Assign the value to the field using `set_val`
+                    # Assign the value to the field using set_val
                     if not obj.set_val(field, value_obj, self.valid_user_types_names):
                         super().error(ErrorType.NAME_ERROR, f"Failed to assign value to field '{field}'")
                     return
 
-                # Move to the next nested object
+                #Move to the next nested object
                 obj = obj.get_val(field)
                 if obj is None or obj.type() == Type.NIL:
                     super().error(ErrorType.FAULT_ERROR, f"Field '{field}' is nil or uninitialized")
 
-                # Extract the UserObject from the nested Value
+                #Extract the UserObject from the nested Value
                 obj = obj.value()
 
         else:
-            # If no dot operator, handle simple variable assignment
+            # iff no dot operator, handle simple variable assignment
             current_value_obj = self.env.get(var_name)
 
             # Check if the variable exists
             if current_value_obj is None:
                 super().error(ErrorType.NAME_ERROR, f"Undefined variable '{var_name}' in assignment")
 
-            # Handle primitive type assignments
+            # Handle prim type assignments
             if current_value_obj.type() in self.PRIM_TYPES:
                 # Allow coercion for bool: int -> bool
                 if current_value_obj.type() == Type.BOOL and value_obj.type() == Type.INT:
@@ -481,16 +477,18 @@ class Interpreter(InterpreterBase):
         
         if expr_ast.elem_type == InterpreterBase.VAR_NODE:
             var_name = expr_ast.get("name")
-            # Handle dotted variable names (field access)
+            # Handle dotted variable names 
             if "." in var_name:
                 fields = var_name.split(".")
-                obj = self.env.get(fields[0])  # Get the base object
+                obj = self.env.get(fields[0])  #Get the base object
                 #print(obj)
+
                 # Handle base object nil or missing errors
                 if obj is None: # TO DO
                     super().error(ErrorType.NAME_ERROR, f"Variable '{fields[0]}' not found")
                 if obj.type() == Type.NIL or obj.value() is None : #FIX THIS URGENT
                     super().error(ErrorType.FAULT_ERROR, f"Variable '{fields[0]}' is nil")
+
                 # Check if the base object is a primitive type
                 if obj.type() in self.PRIM_TYPES:
                     super().error(
@@ -508,7 +506,7 @@ class Interpreter(InterpreterBase):
                     if field not in self.user_types_fields[obj.name]:
                         super().error(ErrorType.NAME_ERROR, f"Field '{field}' not found in struct '{obj.name}'")
 
-                    # Get the value of the current field
+                    #Get the value of the current field
                     obj = obj.get_val(field)
                     if obj is None:
                         super().error(ErrorType.NAME_ERROR, f"Field '{field}' not found")
@@ -518,10 +516,10 @@ class Interpreter(InterpreterBase):
                     # If there are more fields, ensure the value is a UserObject
                     if len(fields) > 0:
                         if not isinstance(obj.value(), UserObject):
-                            super().error(ErrorType.TYPE_ERROR, f"Field '{field}' is not a struct type")
+                            super().error(ErrorType.NAME_ERROR, f"Field '{field}' is not a struct type")
                         obj = obj.value()  # Move to the next UserObject
 
-                # Return the resolved field value
+                #Return the resolved field value
                 return obj
 
             # Handle simple variable access
@@ -548,13 +546,23 @@ class Interpreter(InterpreterBase):
             struct_name = expr_ast.dict.get("var_type")  # Access the structure type from the 'var_type' key
             if struct_name not in self.user_types_fields:
                 super().error(ErrorType.TYPE_ERROR, f"Undefined struct type {struct_name}")
+            
             # Transform self.user_types_fields[struct_name] into the expected list format
             fields = [{"name": field_name, "var_type": field_type} 
                     for field_name, field_type in self.user_types_fields[struct_name].items()]
             new_instance = create_user_object(struct_name, fields, self.valid_user_types_names)
+            
             if not new_instance:
                 super().error(ErrorType.TYPE_ERROR, f"Failed to create instance of struct type {struct_name}")
             # Return the instance wrapped in a Value object
+            
+            # Initialize fields to `nil` for self-referencing structs
+            for field in fields:
+                field_name = field["name"]
+                field_type = field["var_type"]
+                if field_type in self.user_types_fields:
+                    new_instance.set_val(field_name, Value(Type.NIL, None), self.valid_user_types_names)
+            
             return Value(struct_name, new_instance)
 
 
@@ -577,16 +585,26 @@ class Interpreter(InterpreterBase):
         # Also handle coercion for equality comparisons, allowing int-to-bool comparison
         if operator in {"==", "!="}:
             # Handle int-to-bool coercion
+
             # Struct csomparisons
             if left_value_obj.type() in self.default_user_types.keys() or right_value_obj.type() in self.default_user_types.keys():
                 # Handle nil and struct comparison
                 if left_value_obj.type() == Type.NIL or right_value_obj.type() == Type.NIL:
+                    if left_value_obj.type() == right_value_obj.type():
+                        return Value(Type.BOOL, operator == "==")
                     if left_value_obj.type() == Type.NIL and right_value_obj.type() in self.default_user_types.keys() and right_value_obj.value() is None:
                         return Value(Type.BOOL, operator == "==")
                     elif right_value_obj.type() == Type.NIL and left_value_obj.type() in self.default_user_types.keys() and left_value_obj.value() is None:
                         return Value(Type.BOOL, operator == "==")
                     else:
                         return Value(Type.BOOL, operator == "!=")
+                
+                # Handle uninitialized structs
+                if left_value_obj.value() is None and right_value_obj.value() is None:
+                    return Value(Type.BOOL, arith_ast.elem_type == "==")  # Both are uninitialized, so they are "=="
+                if left_value_obj.value() is None or right_value_obj.value() is None:
+                    return Value(Type.BOOL, arith_ast.elem_type == "!=")  # One is uninitialized, the other is not
+                
 
                 # Both are structs: ensure they are of the same type
                 if left_value_obj.type() != right_value_obj.type():
@@ -825,6 +843,20 @@ class Interpreter(InterpreterBase):
         elif default_type != Type.VOID and default_type.type() != value_obj.type(): #THIS IS THE SOURCE OF ERROR
             #print(f"DEBUG: Type mismatch - Expected: {default_type}, Found: {value_obj.type()}")
             super().error(ErrorType.TYPE_ERROR, "Return type mismatch") #handle void case and structs
+        
+        if default_type.type() in self.default_user_types:
+            # Allow `nil` if it matches the struct type
+            if value_obj.type() == Type.NIL:
+                if default_type.value() != value_obj.type():
+                    super().error(
+                        ErrorType.TYPE_ERROR,
+                        f"Return type mismatch: expected {default_type.type()}, but got nil of different type"
+                    )
+            elif value_obj.type() != default_type.type():
+                super().error(
+                    ErrorType.TYPE_ERROR,
+                    f"Return type mismatch: expected {default_type.type()}, but got {value_obj.type()}"
+                )
 
         return (ExecStatus.RETURN, value_obj)
     
@@ -836,10 +868,39 @@ class Interpreter(InterpreterBase):
         
 def main():
     program = """
-func main() : void {
-    var a : int;
-    a = 3;
-    print(a == nil);
+struct A {x: int;}
+struct B {x: int;}
+
+func main(): void {
+  var a: A;
+  var b: B;
+  a = getAnil();
+  b = getBnil();
+  print(a);
+  print(b);
+  print("fine so far");
+  getB();
+  return;
+}
+
+func getA() : A {
+  var b: B;
+  b = nil;
+  return b;
+}
+
+func getB() : B {
+  var a: A;
+  a = nil;
+  return a;
+}
+
+func getAnil() : A {
+  return nil;
+}
+
+func getBnil() : B {
+  return nil;
 }
 
 /*
