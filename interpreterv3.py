@@ -50,9 +50,7 @@ class Interpreter(InterpreterBase):
         self.__call_func_aux("main", [])
     
     def __set_up_user_defined_types(self, ast):
-        """
-        Sets up user-defined structures (structs) from the abstract syntax tree (AST).
-        """
+        
         # Check if there are any structs defined in the AST
         if  ast.get("structs")==[]:  # Returns an empty list if "structs" is not found
             return
@@ -299,35 +297,33 @@ class Interpreter(InterpreterBase):
             # Handle void values: cannot be printed
             if result.type() == Type.VOID:
                 super().error(ErrorType.TYPE_ERROR, "Cannot print void value.")
-            
-            # Handle user-defined structures
-            if result.type() in self.default_user_types and result.value() == None: #I WILL HAVE TO CHANGE THIS
-
+            if result.type() == Type.STRING and result.value() is None:
+                output.append("")
+            # Handle user-defined structures or nil values
+            if result.type() in self.default_user_types and result.value() is None:  # Uninitialized
                 output.append("nil")
-
-            elif result.type() in self.default_user_types or result.type() == Type.NIL:
-                # Print "nil" if the value is nil (uninitialized)
-                
-                if result.type() == Type.NIL: 
-                    output.append("nil")
-                else:
-                    # Raise an error if attempting to print the entire structure
-                    super().error(
-                        ErrorType.TYPE_ERROR,
-                        f"Cannot print entire user-defined structure of type {result.type()}. Access specific fields instead."
-                    )
+            elif result.type() == Type.NIL:
+                output.append("nil")
+            elif result.type() in self.default_user_types:
+                # Raise an error if attempting to print the entire structure
+                super().error(
+                    ErrorType.TYPE_ERROR,
+                    f"Cannot print entire user-defined structure of type {result.type()}. Access specific fields instead."
+                )
             else:
                 # Get printable representation for primitive types
                 printable_result = get_printable(result)
-                #print(printable_result)
-                # If the value is non-printable, raise an error
                 if printable_result is None:
                     super().error(ErrorType.TYPE_ERROR, "Cannot print non-printable value.")
-
-                output.append(printable_result)
+                else:
+                    output.append(str(printable_result))  # Ensure conversion to string
         
         # Join all outputs with a space and send to the output stream
-        super().output("".join(output))
+        try:
+            super().output("".join(output))
+        except TypeError as e:
+            super().error(ErrorType.TYPE_ERROR, f"Error in printing: {e}")
+
 
 
     def __call_input(self, name, args):
@@ -471,7 +467,7 @@ class Interpreter(InterpreterBase):
             if "." in var_name:
                 fields = var_name.split(".")
                 obj = self.env.get(fields[0])  # Get the base object
-                print(obj)
+                #print(obj)
                 # Handle base object nil or missing errors
                 if obj is None: # TO DO
                     super().error(ErrorType.NAME_ERROR, f"Variable '{fields[0]}' not found")
@@ -695,6 +691,15 @@ class Interpreter(InterpreterBase):
             Type.BOOL, x.type() != y.type() or x.value() != y.value()
         )
         
+        # Handle struct types (comparison by reference)
+        self.op_to_lambda[Type.STRUCT] = {}
+        self.op_to_lambda[Type.STRUCT]["=="] = lambda x, y: Value(
+            Type.BOOL, x.value() == y.value()
+        )
+        self.op_to_lambda[Type.STRUCT]["!="] = lambda x, y: Value(
+            Type.BOOL, x.value() != y.value()
+        )
+
 
     def __do_if(self, if_ast):
         #print("in if block")
@@ -758,7 +763,7 @@ class Interpreter(InterpreterBase):
         # Ensure default_type is valid
         #print("default type in do return")
        # print(default_type)
-        print(default_type)
+        #print(default_type)
         if default_type is None:
             super().error(ErrorType.TYPE_ERROR, "Return type is undefined")
         # TO DO:
@@ -807,33 +812,19 @@ class Interpreter(InterpreterBase):
         
 def main():
     program = """
-struct circle{
-  r: int;
-}
-
-struct square {
-  s: int;
-}
-
-
-func main(): void{
-  var c: circle;
-  var s: square;
-
-  s = new square;
-  c = new circle;
-  print(c == s);
+func main() : void {
+  var a: string;
+  print(a);
+  a = "it wasn't str arghhhh.";
+  print(a);
 }
 
 /*
 *OUT*
-ErrorType.TYPE_ERROR
+
+it wasn't str arghhhh.
 *OUT*
 */
-
-
-
-
        """
 
 
