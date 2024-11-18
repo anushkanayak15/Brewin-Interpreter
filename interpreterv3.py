@@ -599,7 +599,7 @@ class Interpreter(InterpreterBase):
                     else:
                         return Value(Type.BOOL, operator == "!=")
                 
-                # Handle uninitialized structs
+                #handle uninitialized structs
                 if left_value_obj.value() is None and right_value_obj.value() is None:
                     return Value(Type.BOOL, arith_ast.elem_type == "==")  # Both are uninitialized, so they are "=="
                 if left_value_obj.value() is None or right_value_obj.value() is None:
