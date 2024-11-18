@@ -8,6 +8,7 @@ class Type:
     STRING = "string"
     NIL = "nil"
     VOID = "void"
+    STRUCT = "struct"
 
 
 # Represents a value, which has a type and its value
@@ -16,7 +17,11 @@ class Value:
         self.t = type
         #self.v = value
         self.v = value if value is not None else self.default_value(type)
-
+    def __str__(self):
+        if self.v is None:
+            return "nil" if self.t != "string" else ""
+        return str(self.v)
+    
     def value(self):
         return self.v
 
