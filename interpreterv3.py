@@ -252,13 +252,27 @@ class Interpreter(InterpreterBase):
             # Allow nil as a valid return value for user-defined structs
             if return_val.type() == Type.NIL and return_type in self.default_user_types:
                 return return_val  # No error, nil is valid for struct types
-            
+            else:
+                super().error(
+                    ErrorType.TYPE_ERROR,
+                    f"Return type mismatch: expected {return_type}, but got {return_val.type()}"
+                )
             # If it's not nil or doesn't match the user-defined struct, raise an error
-            if return_val.type() not in self.default_user_types or return_val.type() != return_type:
-                super().error(ErrorType.TYPE_ERROR, "Return type mismatch")
-
-
-        
+            if return_val.type() in self.default_user_types:
+                if return_val.type() != return_type:
+                    super().error(
+                        ErrorType.TYPE_ERROR,
+                        f"Return type mismatch: expected {return_type}, but got {return_val.type()}"
+                    )
+            else:
+                # Raise an error for any other mismatches
+                super().error(
+                    ErrorType.TYPE_ERROR,
+                    f"Return type mismatch: expected {return_type}, but got {return_val.type()}"
+                )
+            # if return_val.type() not in self.default_user_types or return_val.type() != return_type:
+            #     super().error(ErrorType.TYPE_ERROR, "Return type mismatch")
+  
         return return_val
         # if return_type== Type.VOID:
         #     return
@@ -392,6 +406,10 @@ class Interpreter(InterpreterBase):
                                 ErrorType.TYPE_ERROR,
                                 f"Type mismatch: cannot assign {value_obj.type()} to {field_type} in field '{field}'"
                             )
+                        if value_obj.type() == Type.NIL:
+                            obj.set_val(field, Value(Type.NIL, None), self.valid_user_types_names)
+                            return
+
                     else:
                         super().error(
                             ErrorType.TYPE_ERROR,
@@ -471,7 +489,7 @@ class Interpreter(InterpreterBase):
                 # Handle base object nil or missing errors
                 if obj is None: # TO DO
                     super().error(ErrorType.NAME_ERROR, f"Variable '{fields[0]}' not found")
-                if obj.type() == Type.NIL or obj.value() is None :
+                if obj.type() == Type.NIL or obj.value() is None : #FIX THIS URGENT
                     super().error(ErrorType.FAULT_ERROR, f"Variable '{fields[0]}' is nil")
                 # Check if the base object is a primitive type
                 if obj.type() in self.PRIM_TYPES:
@@ -543,6 +561,7 @@ class Interpreter(InterpreterBase):
     def __eval_op(self, arith_ast):
         left_value_obj = self.__eval_expr(arith_ast.get("op1"))
         right_value_obj = self.__eval_expr(arith_ast.get("op2"))
+        operator = arith_ast.elem_type
 #WHEN TYPE IS IN THE USER DEFINED TYPE AND THE VALUE IS NONE AND THE OTHER OPERATOR TYPE IS NIL IT SHOULD ALLOW == AND =!
         # Check if any operand is of type 'void'
         if left_value_obj.type() == Type.VOID or right_value_obj.type() == Type.VOID:
@@ -556,34 +575,31 @@ class Interpreter(InterpreterBase):
             right_value_obj = self.__coerce_to_bool(right_value_obj)
         
         # Also handle coercion for equality comparisons, allowing int-to-bool comparison
-        elif arith_ast.elem_type in {"==", "!="}:
+        if operator in {"==", "!="}:
             # Handle int-to-bool coercion
+            # Struct csomparisons
+            if left_value_obj.type() in self.default_user_types.keys() or right_value_obj.type() in self.default_user_types.keys():
+                # Handle nil and struct comparison
+                if left_value_obj.type() == Type.NIL or right_value_obj.type() == Type.NIL:
+                    if left_value_obj.type() == Type.NIL and right_value_obj.type() in self.default_user_types.keys() and right_value_obj.value() is None:
+                        return Value(Type.BOOL, operator == "==")
+                    elif right_value_obj.type() == Type.NIL and left_value_obj.type() in self.default_user_types.keys() and left_value_obj.value() is None:
+                        return Value(Type.BOOL, operator == "==")
+                    else:
+                        return Value(Type.BOOL, operator == "!=")
+
+                # Both are structs: ensure they are of the same type
+                if left_value_obj.type() != right_value_obj.type():
+                    super().error(ErrorType.TYPE_ERROR, "Cannot compare structs of different types")
+
+                # Compare the struct values
+                return Value(Type.BOOL, operator == "==" and left_value_obj.value() == right_value_obj.value())
+
+            # Allow int-to-bool coercion for equality
             if left_value_obj.type() == Type.INT and right_value_obj.type() == Type.BOOL:
                 left_value_obj = self.__coerce_to_bool(left_value_obj)
             elif left_value_obj.type() == Type.BOOL and right_value_obj.type() == Type.INT:
                 right_value_obj = self.__coerce_to_bool(right_value_obj)
-            if left_value_obj.type() in self.default_user_types.keys() and right_value_obj.type() in self.default_user_types.keys():
-                if left_value_obj.type() != right_value_obj.type():
-                    super().error(ErrorType.TYPE_ERROR, "Cannot compare structs of different types.")
-            if left_value_obj.type() in self.default_user_types.keys() or right_value_obj.type() in self.default_user_types.keys():
-                if left_value_obj.type() == Type.NIL or  right_value_obj.type()== Type.NIL:
-                    if left_value_obj.type() == Type.NIL and right_value_obj.type() in self.default_user_types.keys() and right_value_obj.value() == None:
-                        if arith_ast.elem_type in {"=="}:
-                            return Value(Type.BOOL, True)
-                        else:
-                            return Value(Type.BOOL, False)
-                    elif right_value_obj.type() == Type.NIL and left_value_obj.type() in self.default_user_types.keys() and left_value_obj.value() == None:
-                        if arith_ast.elem_type in {"=="}:
-                            return Value(Type.BOOL, True)
-                        else:
-                            return Value(Type.BOOL, False)
-                
-                if left_value_obj.type() != right_value_obj.type():
-                    return Value(Type.BOOL, False)
-                if left_value_obj.type() == Type.INT and right_value_obj.type() == Type.BOOL:
-                    left_value_obj = self.__coerce_to_bool(left_value_obj)
-                elif left_value_obj.type() == Type.BOOL and right_value_obj.type() == Type.INT:
-                    right_value_obj = self.__coerce_to_bool(right_value_obj)
                 
 
         if not self.__compatible_types(
