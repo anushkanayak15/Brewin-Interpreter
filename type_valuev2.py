@@ -80,19 +80,13 @@ def get_printable(val): #TO DO
 # They do not allocate memory for the fields until explicitly initialized with new
 class UserObject:
     def __init__(self, name, fields, existing_user_types=[]):
-        """
-        Initialize the UserObject with a name and fields.
-        Fields should be a list of dictionaries, each containing
-        field names and types.
-        """
+        
         self.name = name
         self.v = {}
 
         for field in fields:
             field_name = field.get("name")
             field_type = field.get("var_type")
-
-            # Validate field types
             if field_type not in ["int", "bool", "string"] and field_type not in existing_user_types:
                 raise ValueError(f"Invalid field type '{field_type}' for field '{field_name}'.")
 
@@ -103,62 +97,58 @@ class UserObject:
                 self.v[field_name] = Value(Type.BOOL, False)
             elif field_type == "string":
                 self.v[field_name] = Value(Type.STRING, "")
-            else:  # For user-defined struct types, default to None (nil)
+            else:  # user-defined struct types, default to None (nil)
                 self.v[field_name] = Value(Type.NIL, None)
 
     def set_val(self, field_name, value, existing_user_types=[]):
-        """
-        Set a value to a field.
-        Args:
-            field_name (str): The name of the field to set.
-            value (Value): The value to assign to the field.
-            existing_user_types (list): List of valid struct types for validation.
-        """
+        
         if field_name not in self.v:
-            return False  # Field doesn't exist
-
+            return False  
         # Retrieve the expected field type
         expected_type = self.v[field_name].type()
-
-        # Check for type mismatch
+        #check for type mismatch
         if expected_type not in ["int", "bool", "string", "nil"] and expected_type not in existing_user_types:
-            return False  # Invalid or unknown type
+            return False  
         if expected_type  in ["int", "bool", "string"]:
             if expected_type != value.type():
-                return False  # Type mismatch
+                return False 
 
-        # Assign the value to the field
         self.v[field_name] = value
         return True
 
 
     def get_val(self, field_name):
-        """
-        Get the value of a field.
-        """
         return self.v.get(field_name, None)
 
     def get_all_val(self):
-       
-        #Get all field values in the UserObject.
-
         return self.v
 
-    def has_val(self):
-        """
-        Check if the UserObject has any fields.
-        """
+    def has_val(self): 
         return len(self.v) > 0
 
 def create_user_object(name, values=[], existing_user_types=[]):
         
         #Create a user object based on the specified fields and existing user types.
-
+        field_values = {}
         for field in values:
+            field_name = field.get("name")
             field_type = field.get("var_type")
             # Validate the field type
             if field_type not in ["int", "bool", "string"] and field_type not in existing_user_types:
                 return False
+            # Initialize default values for primitive types
+            if field_type == "int":
+                field_values[field_name] = Value(Type.INT, 0)
+            elif field_type == "bool":
+                field_values[field_name] = Value(Type.BOOL, False)
+            elif field_type == "string":
+                field_values[field_name] = Value(Type.STRING, "")
+            else:  #  user-defined struct types, default to nil
+                #  user-defined struct types, default to nil
+                if field_type == name:  # Handle self-referential field
+                    field_values[field_name] = Value(Type.NIL, None)
+                else:
+                    field_values[field_name] = Value(Type.NIL, None)
         return UserObject(name, values, existing_user_types)
 
 
