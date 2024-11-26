@@ -148,6 +148,7 @@ class Interpreter(InterpreterBase):
     def __assign(self, assign_ast):
         var_name = assign_ast.get("name")
         lazy_expr = LazyValue(lambda: self.__eval_expr(assign_ast.get("expression")).value())
+       
         #value_obj = self.__eval_expr(assign_ast.get("expression"))
         if not self.env.set(var_name, lazy_expr):
             super().error(
@@ -187,7 +188,17 @@ class Interpreter(InterpreterBase):
         # Lazy evaluation for variables and operations
         if expr_ast.elem_type == InterpreterBase.VAR_NODE:
             var_name = expr_ast.get("name")
-            return LazyValue(lambda: self.env.get(var_name).value())  # Lazy lookup
+            var_value = self.env.get(var_name)
+            if var_value is None:
+                super().error(ErrorType.NAME_ERROR, f"Variable {var_name} not found")
+            if isinstance(var_value, LazyValue):
+                evaluated_value = var_value.value()  # Evaluate if needed
+                self.env.set(var_name, evaluated_value)  # Cache the result
+                return evaluated_value
+            return var_value
+        # if expr_ast.elem_type == InterpreterBase.VAR_NODE:
+        #     var_name = expr_ast.get("name")
+        #     return LazyValue(lambda: self.env.get(var_name).value())  # Lazy lookup
 
         if expr_ast.elem_type == InterpreterBase.FCALL_NODE:
             return LazyValue(lambda: self.__call_func(expr_ast))  # Lazy function call
@@ -416,3 +427,44 @@ class Interpreter(InterpreterBase):
             return (ExecStatus.RETURN, Interpreter.NIL_VALUE)
         value_obj = copy.copy(self.__eval_expr(expr_ast))
         return (ExecStatus.RETURN, value_obj)
+    
+  
+def main():
+    program = """
+  func bar(x) {
+ print("bar: ", x);
+ return x;
+}
+
+func main() {
+ var a;
+ a = bar(0);
+ a = a + bar(1);
+ a = a + bar(2);
+ a = a + bar(3);
+ print("---");
+ print(a);
+ print("---");
+ print(a);
+}
+
+/*
+*OUT*
+---
+bar: 0
+bar: 1
+bar: 2
+bar: 3
+6
+---
+6
+*OUT*
+*/
+       """
+
+
+    interpreter = Interpreter()
+    interpreter.run(program)
+
+if __name__ == "__main__":
+    main()
