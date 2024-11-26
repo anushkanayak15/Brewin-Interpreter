@@ -200,10 +200,57 @@ class Interpreter(InterpreterBase):
 
         if expr_ast.elem_type == Interpreter.NOT_NODE:
             return LazyValue(lambda: self.__eval_unary(expr_ast, Type.BOOL, lambda x: not x))
-
+    
     def __eval_op(self, arith_ast):
+    # Evaluate the left operand
         left_value_obj = self.__eval_expr(arith_ast.get("op1"))
+        if isinstance(left_value_obj, LazyValue):
+            left_value_obj = left_value_obj.value()  # Ensure LazyValue is evaluated
+
+        # Short-circuiting for logical AND (&&)
+        if arith_ast.elem_type == "&&":
+            if left_value_obj.type() != Type.BOOL:
+                super().error(
+                    ErrorType.TYPE_ERROR, "Left operand of && must be of type bool"
+                )
+            # Short-circuit: if the left operand is False, return False immediately
+            if not left_value_obj.value():
+                return Value(Type.BOOL, False)
+
+            # Evaluate the right operand only if needed
+            right_value_obj = self.__eval_expr(arith_ast.get("op2"))
+            if isinstance(right_value_obj, LazyValue):
+                right_value_obj = right_value_obj.value()
+            if right_value_obj.type() != Type.BOOL:
+                super().error(
+                    ErrorType.TYPE_ERROR, "Right operand of && must be of type bool"
+                )
+            return Value(Type.BOOL, left_value_obj.value() and right_value_obj.value())
+
+        # Short-circuiting for logical OR (||)
+        if arith_ast.elem_type == "||":
+            if left_value_obj.type() != Type.BOOL:
+                super().error(
+                    ErrorType.TYPE_ERROR, "Left operand of || must be of type bool"
+                )
+            # Short-circuit: if the left operand is True, return True immediately
+            if left_value_obj.value():
+                return Value(Type.BOOL, True)
+
+            # Evaluate the right operand only if needed
+            right_value_obj = self.__eval_expr(arith_ast.get("op2"))
+            if isinstance(right_value_obj, LazyValue):
+                right_value_obj = right_value_obj.value()
+            if right_value_obj.type() != Type.BOOL:
+                super().error(
+                    ErrorType.TYPE_ERROR, "Right operand of || must be of type bool"
+                )
+            return Value(Type.BOOL, left_value_obj.value() or right_value_obj.value())
+
+        # Handle other operators (no short-circuiting required)
         right_value_obj = self.__eval_expr(arith_ast.get("op2"))
+        if isinstance(right_value_obj, LazyValue):
+            right_value_obj = right_value_obj.value()
         if not self.__compatible_types(
             arith_ast.elem_type, left_value_obj, right_value_obj
         ):
@@ -218,6 +265,23 @@ class Interpreter(InterpreterBase):
             )
         f = self.op_to_lambda[left_value_obj.type()][arith_ast.elem_type]
         return f(left_value_obj, right_value_obj)
+    # def __eval_op(self, arith_ast):
+    #     left_value_obj = self.__eval_expr(arith_ast.get("op1"))
+    #     right_value_obj = self.__eval_expr(arith_ast.get("op2"))
+    #     if not self.__compatible_types(
+    #         arith_ast.elem_type, left_value_obj, right_value_obj
+    #     ):
+    #         super().error(
+    #             ErrorType.TYPE_ERROR,
+    #             f"Incompatible types for {arith_ast.elem_type} operation",
+    #         )
+    #     if arith_ast.elem_type not in self.op_to_lambda[left_value_obj.type()]:
+    #         super().error(
+    #             ErrorType.TYPE_ERROR,
+    #             f"Incompatible operator {arith_ast.elem_type} for type {left_value_obj.type()}",
+    #         )
+    #     f = self.op_to_lambda[left_value_obj.type()][arith_ast.elem_type]
+    #     return f(left_value_obj, right_value_obj)
 
     def __compatible_types(self, oper, obj1, obj2):
         # DOCUMENT: allow comparisons ==/!= of anything against anything
