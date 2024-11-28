@@ -112,18 +112,19 @@ class Interpreter(InterpreterBase):
         # first evaluate all of the actual parameters and associate them with the formal parameter names
         args = {}
         for formal_ast, actual_ast in zip(formal_args, actual_args):
-            result = copy.copy(self.__eval_expr(actual_ast))
+            #result = copy.copy(self.__eval_expr(actual_ast))
+            #each ast should be wrapped in lazy val before added
             arg_name = formal_ast.get("name")
-            args[arg_name] = result
-
-        # then create the new activation record 
+            args[arg_name] = LazyValue(lambda actual_ast = actual_ast: self.__eval_expr(actual_ast)) # evaluated lazily
+              # then create the new activation record 
         self.env.push_func()
         # and add the formal arguments to the activation record
         for arg_name, value in args.items():
           self.env.create(arg_name, value)
         _, return_val = self.__run_statements(func_ast.get("statements"))
         self.env.pop_func()
-        return return_val
+        #return return_val
+        return return_val.value() if isinstance(return_val, LazyValue) else return_val
 
     # def __call_print(self, args):
     #     output = ""
@@ -179,6 +180,9 @@ class Interpreter(InterpreterBase):
             )
 
     def __eval_expr(self, expr_ast):
+        if isinstance(expr_ast, LazyValue):
+        # Force evaluation if the expression is a LazyValue
+            return expr_ast.value()
         if expr_ast.elem_type == InterpreterBase.NIL_NODE:
             return Interpreter.NIL_VALUE
         if expr_ast.elem_type == InterpreterBase.INT_NODE:
@@ -228,7 +232,7 @@ class Interpreter(InterpreterBase):
 
         if expr_ast.elem_type == Interpreter.NOT_NODE:
             return self.__eval_unary(expr_ast, Type.BOOL, lambda x: not x)
-
+        
         # Ensure we raise an error if the type is unrecognized
         super().error(ErrorType.TYPE_ERROR, f"Unsupported expression type: {expr_ast.elem_type}")
         # if expr_ast.elem_type == InterpreterBase.FCALL_NODE:
@@ -460,8 +464,10 @@ class Interpreter(InterpreterBase):
         expr_ast = return_ast.get("expression")
         if expr_ast is None:
             return (ExecStatus.RETURN, Interpreter.NIL_VALUE)
-        value_obj = copy.copy(self.__eval_expr(expr_ast))
-        return (ExecStatus.RETURN, value_obj)
+        # value_obj = copy.copy(self.__eval_expr(expr_ast))
+        return (ExecStatus.RETURN, self.__eval_expr(expr_ast))
+        # return should be handled lazily 
+        #return (ExecStatus.RETURN, LazyValue(lambda: self.__eval_expr(expr_ast)))
     
     def __do_raise(self, raise_ast):
         #RAISE_NODE to invokes the __do_raise helper function
@@ -485,33 +491,28 @@ class Interpreter(InterpreterBase):
   
 def main():
     program = """
-func somefxn(x) {
-  var y;
-  y = 10;
-  x = 8 + y;
+func f(x) {
+  print("running f");
+  return g(5) + 3;
+}
+
+func g(x) {
+  print("running g");
   return x;
 }
 
 func main() {
-	print("hello world");
-	var y;
-	if (true) {
-	  var x;
-	  x = 5; 
-	  y = somefxn(6);
-	}
-	/* y is evaluated below so it now looks for x */
-	print(y);
+    f(3);
+    print("end");
 }
+
 
 /*
 *OUT*
-hello world
-18
+running f
+end
 *OUT*
 */
-
-
        """
 
 
