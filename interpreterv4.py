@@ -125,13 +125,26 @@ class Interpreter(InterpreterBase):
         self.env.pop_func()
         return return_val
 
+    # def __call_print(self, args):
+    #     output = ""
+    #     for arg in args:
+    #         result = self.__eval_expr(arg)  # result is a Value object
+    #         output = output + get_printable(result)
+    #     super().output(output)
+    #     return Interpreter.NIL_VALUE
     def __call_print(self, args):
         output = ""
         for arg in args:
-            result = self.__eval_expr(arg)  # result is a Value object
-            output = output + get_printable(result)
+            result = self.__eval_expr(arg)  # Evaluate the expression
+            if isinstance(result, LazyValue):
+                result = result.value()  # Force evaluation if it's a LazyValue
+            if not isinstance(result, Value):
+                print(f"DEBUG: Invalid print argument of type {type(result)} with value {result}")
+                raise TypeError("print expects a Value object.")
+            output += get_printable(result)
         super().output(output)
         return Interpreter.NIL_VALUE
+
 
     def __call_input(self, name, args):
         if args is not None and len(args) == 1:
@@ -149,7 +162,8 @@ class Interpreter(InterpreterBase):
 
     def __assign(self, assign_ast):
         var_name = assign_ast.get("name")
-        lazy_expr = LazyValue(lambda: self.__eval_expr(assign_ast.get("expression")).value())
+        #lazy_expr = LazyValue(lambda: self.__eval_expr(assign_ast.get("expression")).value())
+        lazy_expr = LazyValue(lambda: self.__eval_expr(assign_ast.get("expression")))
        
         #value_obj = self.__eval_expr(assign_ast.get("expression"))
         if not self.env.set(var_name, lazy_expr):
@@ -197,22 +211,37 @@ class Interpreter(InterpreterBase):
                 evaluated_value = var_value.value()  # Evaluate if needed
                 self.env.set(var_name, evaluated_value)  # Cache the result
                 return evaluated_value
+            if not isinstance(var_value, Value):
+                super().error(ErrorType.TYPE_ERROR, "Variable must be a Value object")
             return var_value
         # if expr_ast.elem_type == InterpreterBase.VAR_NODE:
         #     var_name = expr_ast.get("name")
         #     return LazyValue(lambda: self.env.get(var_name).value())  # Lazy lookup
-
         if expr_ast.elem_type == InterpreterBase.FCALL_NODE:
-            return LazyValue(lambda: self.__call_func(expr_ast))  # Lazy function call
+                return self.__call_func(expr_ast)  # Fully resolve the function call
 
         if expr_ast.elem_type in Interpreter.BIN_OPS:
-            return LazyValue(lambda: self.__eval_op(expr_ast))  # Lazy binary operation
+            return self.__eval_op(expr_ast)  # Resolve binary operations
 
         if expr_ast.elem_type == Interpreter.NEG_NODE:
-            return LazyValue(lambda: self.__eval_unary(expr_ast, Type.INT, lambda x: -1 * x))
+            return self.__eval_unary(expr_ast, Type.INT, lambda x: -x)
 
         if expr_ast.elem_type == Interpreter.NOT_NODE:
-            return LazyValue(lambda: self.__eval_unary(expr_ast, Type.BOOL, lambda x: not x))
+            return self.__eval_unary(expr_ast, Type.BOOL, lambda x: not x)
+
+        # Ensure we raise an error if the type is unrecognized
+        super().error(ErrorType.TYPE_ERROR, f"Unsupported expression type: {expr_ast.elem_type}")
+        # if expr_ast.elem_type == InterpreterBase.FCALL_NODE:
+        #     return LazyValue(lambda: self.__call_func(expr_ast))  # Lazy function call
+
+        # if expr_ast.elem_type in Interpreter.BIN_OPS:
+        #     return LazyValue(lambda: self.__eval_op(expr_ast))  # Lazy binary operation
+
+        # if expr_ast.elem_type == Interpreter.NEG_NODE:
+        #     return LazyValue(lambda: self.__eval_unary(expr_ast, Type.INT, lambda x: -1 * x))
+
+        # if expr_ast.elem_type == Interpreter.NOT_NODE:
+        #     return LazyValue(lambda: self.__eval_unary(expr_ast, Type.BOOL, lambda x: not x))
     
     def __eval_op(self, arith_ast):
     # Evaluate the left operand
@@ -232,8 +261,10 @@ class Interpreter(InterpreterBase):
 
             # Evaluate the right operand only if needed
             right_value_obj = self.__eval_expr(arith_ast.get("op2"))
+            
             if isinstance(right_value_obj, LazyValue):
                 right_value_obj = right_value_obj.value()
+            
             if right_value_obj.type() != Type.BOOL:
                 super().error(
                     ErrorType.TYPE_ERROR, "Right operand of && must be of type bool"
@@ -264,6 +295,7 @@ class Interpreter(InterpreterBase):
         right_value_obj = self.__eval_expr(arith_ast.get("op2"))
         if isinstance(right_value_obj, LazyValue):
             right_value_obj = right_value_obj.value()
+        
         if not self.__compatible_types(
             arith_ast.elem_type, left_value_obj, right_value_obj
         ):
@@ -382,7 +414,8 @@ class Interpreter(InterpreterBase):
 
     def __do_if(self, if_ast):
         cond_ast = if_ast.get("condition")
-        result = self.__eval_expr(cond_ast).value()  # Force evaluation here
+        result = self.__eval_expr(cond_ast) 
+        #result = self.__eval_expr(cond_ast).value()  # Force evaluation here
         if result.type() != Type.BOOL:
             super().error(
                 ErrorType.TYPE_ERROR,
@@ -452,20 +485,31 @@ class Interpreter(InterpreterBase):
   
 def main():
     program = """
-func functionThatRaises() {
-  raise "some_exception";  /* Exception occurs here when func is called */
-  return 0;
+func somefxn(x) {
+  var y;
+  y = 10;
+  x = 8 + y;
+  return x;
 }
 
 func main() {
-  var result;
-  result = functionThatRaises();
-  print("Assigned result!");
-  /* Exception will occur when result is evaluated */
-  print(result, " was what we got!");
+	print("hello world");
+	var y;
+	if (true) {
+	  var x;
+	  x = 5; 
+	  y = somefxn(6);
+	}
+	/* y is evaluated below so it now looks for x */
+	print(y);
 }
 
-
+/*
+*OUT*
+hello world
+18
+*OUT*
+*/
 
 
        """
