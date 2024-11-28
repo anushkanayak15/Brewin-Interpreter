@@ -85,6 +85,8 @@ class Interpreter(InterpreterBase):
             status, return_val = self.__do_if(statement)
         elif statement.elem_type == Interpreter.FOR_NODE:
             status, return_val = self.__do_for(statement)
+        elif statement.elem_type == InterpreterBase.RAISE_NODE:  # Handle raise
+            self.__do_raise(statement)
 
         return (status, return_val)
     
@@ -428,38 +430,44 @@ class Interpreter(InterpreterBase):
         value_obj = copy.copy(self.__eval_expr(expr_ast))
         return (ExecStatus.RETURN, value_obj)
     
+    def __do_raise(self, raise_ast):
+        #RAISE_NODE to invokes the __do_raise helper function
+#The expression following the raise keyword must be evaluated eagerly
+#Ensure the evaluated expression results in a STRING. If not, raise a TYPE_ERROR
+
+        # Evaluate the exception type expression
+        exception_expr = raise_ast.get("exception_type")
+        exception_value = self.__eval_expr(exception_expr)  # Eager evaluation
+
+        # Validate that the result is a string
+        if exception_value.type() != Type.STRING:
+            super().error(
+                ErrorType.TYPE_ERROR,
+                "The expression passed to `raise` must evaluate to a string."
+            )
+
+        # Raise an exception with the string value
+        raise Exception(exception_value.value())
+
   
 def main():
     program = """
-  func bar(x) {
- print("bar: ", x);
- return x;
+func functionThatRaises() {
+  raise "some_exception";  /* Exception occurs here when func is called */
+  return 0;
 }
 
 func main() {
- var a;
- a = bar(0);
- a = a + bar(1);
- a = a + bar(2);
- a = a + bar(3);
- print("---");
- print(a);
- print("---");
- print(a);
+  var result;
+  result = functionThatRaises();
+  print("Assigned result!");
+  /* Exception will occur when result is evaluated */
+  print(result, " was what we got!");
 }
 
-/*
-*OUT*
----
-bar: 0
-bar: 1
-bar: 2
-bar: 3
-6
----
-6
-*OUT*
-*/
+
+
+
        """
 
 
