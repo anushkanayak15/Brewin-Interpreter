@@ -163,8 +163,9 @@ class Interpreter(InterpreterBase):
 
     def __assign(self, assign_ast):
         var_name = assign_ast.get("name")
+        lazy_expr = LazyValue(lambda: copy.copy(self.__eval_expr(assign_ast.get("expression"))))
         #lazy_expr = LazyValue(lambda: self.__eval_expr(assign_ast.get("expression")).value())
-        lazy_expr = LazyValue(lambda: self.__eval_expr(assign_ast.get("expression")))
+        #lazy_expr = LazyValue(lambda: self.__eval_expr(assign_ast.get("expression")))
        
         #value_obj = self.__eval_expr(assign_ast.get("expression"))
         if not self.env.set(var_name, lazy_expr):
@@ -179,10 +180,54 @@ class Interpreter(InterpreterBase):
                 ErrorType.NAME_ERROR, f"Duplicate definition for variable {var_name}"
             )
 
+    # def __eval_expr(self, expr_ast):
+    #     if isinstance(expr_ast, LazyValue):
+    #     # Force evaluation if the expression is a LazyValue
+    #         return expr_ast.value()
+    #     if expr_ast.elem_type == InterpreterBase.NIL_NODE:
+    #         return Interpreter.NIL_VALUE
+    #     if expr_ast.elem_type == InterpreterBase.INT_NODE:
+    #         return Value(Type.INT, expr_ast.get("val"))
+    #     if expr_ast.elem_type == InterpreterBase.STRING_NODE:
+    #         return Value(Type.STRING, expr_ast.get("val"))
+    #     if expr_ast.elem_type == InterpreterBase.BOOL_NODE:
+    #         return Value(Type.BOOL, expr_ast.get("val"))
+        
+    #     # Lazy evaluation for variables and operations
+    #     if expr_ast.elem_type == InterpreterBase.VAR_NODE:
+    #         var_name = expr_ast.get("name")
+    #         var_value = self.env.get(var_name)
+    #         if var_value is None:
+    #             super().error(ErrorType.NAME_ERROR, f"Variable {var_name} not found")
+    #         if isinstance(var_value, LazyValue):
+    #             evaluated_value = var_value.value()  # Evaluate if needed
+    #             self.env.set(var_name, evaluated_value)  # Cache the result
+    #             return evaluated_value
+    #         if not isinstance(var_value, Value):
+    #             super().error(ErrorType.TYPE_ERROR, "Variable must be a Value object")
+    #         return var_value
+    #     # if expr_ast.elem_type == InterpreterBase.VAR_NODE:
+    #     #     var_name = expr_ast.get("name")
+    #     #     return LazyValue(lambda: self.env.get(var_name).value())  # Lazy lookup
+    #     if expr_ast.elem_type == InterpreterBase.FCALL_NODE:
+    #             return self.__call_func(expr_ast)  # Fully resolve the function call
+
+    #     if expr_ast.elem_type in Interpreter.BIN_OPS:
+    #         return self.__eval_op(expr_ast)  # Resolve binary operations
+
+    #     if expr_ast.elem_type == Interpreter.NEG_NODE:
+    #         return self.__eval_unary(expr_ast, Type.INT, lambda x: -x)
+
+    #     if expr_ast.elem_type == Interpreter.NOT_NODE:
+    #         return self.__eval_unary(expr_ast, Type.BOOL, lambda x: not x)
+        
+    #     # Ensure we raise an error if the type is unrecognized
+    #     super().error(ErrorType.TYPE_ERROR, f"Unsupported expression type: {expr_ast.elem_type}")
     def __eval_expr(self, expr_ast):
-        if isinstance(expr_ast, LazyValue):
         # Force evaluation if the expression is a LazyValue
+        if isinstance(expr_ast, LazyValue):
             return expr_ast.value()
+        
         if expr_ast.elem_type == InterpreterBase.NIL_NODE:
             return Interpreter.NIL_VALUE
         if expr_ast.elem_type == InterpreterBase.INT_NODE:
@@ -191,61 +236,32 @@ class Interpreter(InterpreterBase):
             return Value(Type.STRING, expr_ast.get("val"))
         if expr_ast.elem_type == InterpreterBase.BOOL_NODE:
             return Value(Type.BOOL, expr_ast.get("val"))
-        # if expr_ast.elem_type == InterpreterBase.VAR_NODE:
-        #     var_name = expr_ast.get("name")
-        #     val = self.env.get(var_name)
-        #     if val is None:
-        #         super().error(ErrorType.NAME_ERROR, f"Variable {var_name} not found")
-        #     return val
-        # if expr_ast.elem_type == InterpreterBase.FCALL_NODE:
-        #     return self.__call_func(expr_ast)
-        # if expr_ast.elem_type in Interpreter.BIN_OPS:
-        #     return self.__eval_op(expr_ast)
-        # if expr_ast.elem_type == Interpreter.NEG_NODE:
-        #     return self.__eval_unary(expr_ast, Type.INT, lambda x: -1 * x)
-        # if expr_ast.elem_type == Interpreter.NOT_NODE:
-        #     return self.__eval_unary(expr_ast, Type.BOOL, lambda x: not x)
-        # Lazy evaluation for variables and operations
+        
         if expr_ast.elem_type == InterpreterBase.VAR_NODE:
             var_name = expr_ast.get("name")
             var_value = self.env.get(var_name)
             if var_value is None:
                 super().error(ErrorType.NAME_ERROR, f"Variable {var_name} not found")
+            # If the variable value is a LazyValue, evaluate it
             if isinstance(var_value, LazyValue):
-                evaluated_value = var_value.value()  # Evaluate if needed
-                self.env.set(var_name, evaluated_value)  # Cache the result
+                evaluated_value = var_value.value()
+                self.env.set(var_name, evaluated_value)  # Cache the evaluated result
                 return evaluated_value
-            if not isinstance(var_value, Value):
-                super().error(ErrorType.TYPE_ERROR, "Variable must be a Value object")
             return var_value
-        # if expr_ast.elem_type == InterpreterBase.VAR_NODE:
-        #     var_name = expr_ast.get("name")
-        #     return LazyValue(lambda: self.env.get(var_name).value())  # Lazy lookup
+
         if expr_ast.elem_type == InterpreterBase.FCALL_NODE:
-                return self.__call_func(expr_ast)  # Fully resolve the function call
-
+            return self.__call_func(expr_ast)
+        
         if expr_ast.elem_type in Interpreter.BIN_OPS:
-            return self.__eval_op(expr_ast)  # Resolve binary operations
-
+            return self.__eval_op(expr_ast)
+        
         if expr_ast.elem_type == Interpreter.NEG_NODE:
             return self.__eval_unary(expr_ast, Type.INT, lambda x: -x)
-
+        
         if expr_ast.elem_type == Interpreter.NOT_NODE:
             return self.__eval_unary(expr_ast, Type.BOOL, lambda x: not x)
-        
-        # Ensure we raise an error if the type is unrecognized
+
         super().error(ErrorType.TYPE_ERROR, f"Unsupported expression type: {expr_ast.elem_type}")
-        # if expr_ast.elem_type == InterpreterBase.FCALL_NODE:
-        #     return LazyValue(lambda: self.__call_func(expr_ast))  # Lazy function call
-
-        # if expr_ast.elem_type in Interpreter.BIN_OPS:
-        #     return LazyValue(lambda: self.__eval_op(expr_ast))  # Lazy binary operation
-
-        # if expr_ast.elem_type == Interpreter.NEG_NODE:
-        #     return LazyValue(lambda: self.__eval_unary(expr_ast, Type.INT, lambda x: -1 * x))
-
-        # if expr_ast.elem_type == Interpreter.NOT_NODE:
-        #     return LazyValue(lambda: self.__eval_unary(expr_ast, Type.BOOL, lambda x: not x))
     
     def __eval_op(self, arith_ast):
     # Evaluate the left operand
@@ -491,29 +507,20 @@ class Interpreter(InterpreterBase):
   
 def main():
     program = """
-func f(x) {
-  print("running f");
-  return g(5) + 3;
-}
-
-func g(x) {
-  print("running g");
-  return x;
-}
-
 func main() {
-    f(3);
-    print("end");
+    var x;
+    var y;
+    y = 3;
+    x = y + 1;
+    y = 10;
+    print(x);
 }
-
 
 /*
 *OUT*
-running f
-end
+4
 *OUT*
-*/
-       """
+*/     """
 
 
     interpreter = Interpreter()
