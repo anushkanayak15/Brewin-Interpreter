@@ -76,10 +76,10 @@ class Interpreter(InterpreterBase):
         # Handle try catch block
         if statement.elem_type == InterpreterBase.TRY_NODE:
             status, return_val = self.__do_try(statement)
-        elif statement.elem_type == InterpreterBase.CATCH_NODE:
-        # Catch nodes only appear in try blocks
-            raise Exception("Catch nodes are not standalone statements")  
-        if statement.elem_type == InterpreterBase.FCALL_NODE:
+        # elif statement.elem_type == InterpreterBase.CATCH_NODE:
+        # # Catch nodes only appear in try blocks
+        #     raise Exception("Catch nodes are not standalone statements")  
+        elif statement.elem_type == InterpreterBase.FCALL_NODE:
             self.__call_func(statement)
         elif statement.elem_type == "=":
             self.__assign(statement)
@@ -93,6 +93,8 @@ class Interpreter(InterpreterBase):
             status, return_val = self.__do_for(statement)
         elif statement.elem_type == InterpreterBase.RAISE_NODE:  # Handle raise
             self.__do_raise(statement)
+        else:
+            raise Exception(f"Error Unrecognized statement type: {statement.elem_type}")
 
         return (status, return_val)
     
@@ -200,51 +202,44 @@ class Interpreter(InterpreterBase):
             super().error(
                 ErrorType.NAME_ERROR, f"Duplicate definition for variable {var_name}"
             )
-
     def __eval_expr(self, expr_ast):
-        # Force evaluation if the expression is a LazyValue
-        if isinstance(expr_ast, LazyValue):
-            result = expr_ast.value()
-            print(f"DEBUG: Evaluating LazyValue for {expr_ast}: {result}")
-            return result
-        
-        if expr_ast.elem_type == InterpreterBase.NIL_NODE:
-            return Interpreter.NIL_VALUE
-        if expr_ast.elem_type == InterpreterBase.INT_NODE:
-            return Value(Type.INT, expr_ast.get("val"))
-        if expr_ast.elem_type == InterpreterBase.STRING_NODE:
-            return Value(Type.STRING, expr_ast.get("val"))
-        if expr_ast.elem_type == InterpreterBase.BOOL_NODE:
-            return Value(Type.BOOL, expr_ast.get("val"))
-        
-        if expr_ast.elem_type == InterpreterBase.VAR_NODE:
-            var_name = expr_ast.get("name")
-            var_value = self.env.get(var_name)
-            print(f"DEBUG: Accessing variable {var_name}: {var_value}")
-            if var_value is None:
-                super().error(ErrorType.NAME_ERROR, f"Variable {var_name} not found")
+        try:
+            if isinstance(expr_ast, LazyValue):
+                result = expr_ast.value()
+                return result
+            #         result = expr_ast.value()
+    #         print(f"DEBUG: Evaluating LazyValue for {expr_ast}: {result}")
+    #         return result
 
-            # Evaluate lazy values and cache the result
-            if isinstance(var_value, LazyValue):
-                evaluated_value = var_value.value()
-                print(f"DEBUG: Evaluating LazyValue for {var_name}: {evaluated_value}")
-                self.env.set(var_name, evaluated_value)  # Cache the evaluated result
-                return evaluated_value
-            return var_value
+            if expr_ast.elem_type == InterpreterBase.NIL_NODE:
+                return Interpreter.NIL_VALUE
+            if expr_ast.elem_type == InterpreterBase.INT_NODE:
+                return Value(Type.INT, expr_ast.get("val"))
+            if expr_ast.elem_type == InterpreterBase.STRING_NODE:
+                return Value(Type.STRING, expr_ast.get("val"))
+            if expr_ast.elem_type == InterpreterBase.BOOL_NODE:
+                return Value(Type.BOOL, expr_ast.get("val"))
 
-        if expr_ast.elem_type == InterpreterBase.FCALL_NODE:
-            return self.__call_func(expr_ast)
-        
-        if expr_ast.elem_type in Interpreter.BIN_OPS:
-            return self.__eval_op(expr_ast)
-        
-        if expr_ast.elem_type == Interpreter.NEG_NODE:
-            return self.__eval_unary(expr_ast, Type.INT, lambda x: -x)
-        
-        if expr_ast.elem_type == Interpreter.NOT_NODE:
-            return self.__eval_unary(expr_ast, Type.BOOL, lambda x: not x)
+            if expr_ast.elem_type == InterpreterBase.VAR_NODE:
+                var_name = expr_ast.get("name")
+                var_value = self.env.get(var_name)
+                    # print(f"DEBUG: Accessing variable {var_name}: {var_value}")
 
-        super().error(ErrorType.TYPE_ERROR, f"Unsupported expression type: {expr_ast.elem_type}")
+                if var_value is None:
+                    super().error(ErrorType.NAME_ERROR, f"Variable {var_name} not found")
+                return var_value.value() if isinstance(var_value, LazyValue) else var_value
+            if expr_ast.elem_type == InterpreterBase.FCALL_NODE:
+                return self.__call_func(expr_ast)
+            if expr_ast.elem_type in Interpreter.BIN_OPS:
+                return self.__eval_op(expr_ast)
+            if expr_ast.elem_type == Interpreter.NEG_NODE:
+                return self.__eval_unary(expr_ast, Type.INT, lambda x: -x)
+            if expr_ast.elem_type == Interpreter.NOT_NODE:
+                return self.__eval_unary(expr_ast, Type.BOOL, lambda x: not x)
+
+            super().error(ErrorType.TYPE_ERROR, f"Unsupported expression type: {expr_ast.elem_type}")
+        except Exception as e:
+            raise e  
 
     def __eval_op(self, arith_ast):
     # Evaluate the left operand
@@ -316,29 +311,18 @@ class Interpreter(InterpreterBase):
         result=  f(left_value_obj, right_value_obj)
         print(f"DEBUG: Result of operation {arith_ast.elem_type}: {result.value()}")
         return result
-    # def __eval_op(self, arith_ast):
-    #     left_value_obj = self.__eval_expr(arith_ast.get("op1"))
-    #     right_value_obj = self.__eval_expr(arith_ast.get("op2"))
-    #     if not self.__compatible_types(
-    #         arith_ast.elem_type, left_value_obj, right_value_obj
-    #     ):
-    #         super().error(
-    #             ErrorType.TYPE_ERROR,
-    #             f"Incompatible types for {arith_ast.elem_type} operation",
-    #         )
-    #     if arith_ast.elem_type not in self.op_to_lambda[left_value_obj.type()]:
-    #         super().error(
-    #             ErrorType.TYPE_ERROR,
-    #             f"Incompatible operator {arith_ast.elem_type} for type {left_value_obj.type()}",
-    #         )
-    #     f = self.op_to_lambda[left_value_obj.type()][arith_ast.elem_type]
-    #     return f(left_value_obj, right_value_obj)
-
+    
     def __compatible_types(self, oper, obj1, obj2):
         # DOCUMENT: allow comparisons ==/!= of anything against anything
         if oper in ["==", "!="]:
             return True
         return obj1.type() == obj2.type()
+    
+    def __handle_div_0(self,x,y):
+        if y.value() == 0:
+            raise Exception("div0")  # Raise division by 0 exception
+        return Value(x.type(), x.value() // y.value())
+    
 
     def __eval_unary(self, arith_ast, t, f):
         value_obj = self.__eval_expr(arith_ast.get("op1"))
@@ -417,6 +401,7 @@ class Interpreter(InterpreterBase):
         self.op_to_lambda[Type.NIL]["!="] = lambda x, y: Value(
             Type.BOOL, x.type() != y.type() or x.value() != y.value()
         )
+        self.op_to_lambda[Type.INT]["/"] = lambda x, y: self.__handle_div_0(x,y)
 
     def __do_if(self, if_ast):
         cond_ast = LazyValue(lambda: self.__eval_expr(if_ast.get("condition")))
@@ -503,8 +488,7 @@ class Interpreter(InterpreterBase):
             self.env.push_block()  # New scope for try
             status, return_val = self.__run_statements(try_stm)
             self.env.pop_block()
-            return status, return_val  # If no exceptions, return as normal
-        
+            return status, return_val  # If there are no exceptions then just return 
         except Exception as e:
             # Handle exceptions raised within the try block
             self.env.pop_block()  # Ensure try scope is cleaned up
@@ -523,21 +507,22 @@ class Interpreter(InterpreterBase):
   
 def main():
     program = """
+func divide(a, b) {
+  return a / b;
+}
+
 func main() {
-    var x;
-    var y;
-    x = 5;
-    y = x + 10;
-    x = 100;
-    print(y); /* still prints 15 */
+  try {
+    var result;
+    result = divide(10, 0);  /* evaluation deferred due to laziness */
+    print("Result: ", result); /* evaluation occurs here */
+  }
+  catch "div0" {
+    print("Caught division by zero!");
+  }
 }
 
 
-/*
-*OUT*
-15
-*OUT*
-*/
 
    """
 
