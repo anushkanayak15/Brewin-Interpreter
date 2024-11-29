@@ -73,6 +73,12 @@ class Interpreter(InterpreterBase):
     def __run_statement(self, statement):
         status = ExecStatus.CONTINUE
         return_val = None
+        # Handle try catch block
+        if statement.elem_type == InterpreterBase.TRY_NODE:
+            status, return_val = self.__do_try(statement)
+        elif statement.elem_type == InterpreterBase.CATCH_NODE:
+        # Catch nodes only appear in try blocks
+            raise Exception("Catch nodes are not standalone statements")  
         if statement.elem_type == InterpreterBase.FCALL_NODE:
             self.__call_func(statement)
         elif statement.elem_type == "=":
@@ -163,16 +169,31 @@ class Interpreter(InterpreterBase):
 
     def __assign(self, assign_ast):
         var_name = assign_ast.get("name")
-        lazy_expr = LazyValue(lambda: copy.copy(self.__eval_expr(assign_ast.get("expression"))))
-        #lazy_expr = LazyValue(lambda: self.__eval_expr(assign_ast.get("expression")).value())
-        #lazy_expr = LazyValue(lambda: self.__eval_expr(assign_ast.get("expression")))
-       
-        #value_obj = self.__eval_expr(assign_ast.get("expression"))
+        expr = assign_ast.get("expression")
+        # Debug: Evaluate the expression and log the result
+        # evaluated_value = self.__eval_expr(expr)
+        # print(f"DEBUG: Assigning to {var_name}: {evaluated_value}")
+
+        # Create a lazy expression for the assignment
+        lazy_expr = LazyValue(
+            lambda: copy.copy(self.__eval_expr(expr))
+            
+        )
+        print(f"DEBUG: Created LazyValue for {var_name} with expression: {expr}")
+        # Before setting the lazy expression, evaluate the current value of the variable
+        # and check if it references itself.
+        current_value = self.env.get(var_name)
+        if isinstance(current_value, LazyValue):
+            current_value = current_value.value()
+        print(f"DEBUG: Current value of {var_name}: {current_value}")
+        # Ensure the lazy value captures the evaluated current state safely
         if not self.env.set(var_name, lazy_expr):
             super().error(
                 ErrorType.NAME_ERROR, f"Undefined variable {var_name} in assignment"
             )
-    
+
+
+        
     def __var_def(self, var_ast):
         var_name = var_ast.get("name")
         if not self.env.create(var_name, Interpreter.NIL_VALUE):
@@ -180,53 +201,12 @@ class Interpreter(InterpreterBase):
                 ErrorType.NAME_ERROR, f"Duplicate definition for variable {var_name}"
             )
 
-    # def __eval_expr(self, expr_ast):
-    #     if isinstance(expr_ast, LazyValue):
-    #     # Force evaluation if the expression is a LazyValue
-    #         return expr_ast.value()
-    #     if expr_ast.elem_type == InterpreterBase.NIL_NODE:
-    #         return Interpreter.NIL_VALUE
-    #     if expr_ast.elem_type == InterpreterBase.INT_NODE:
-    #         return Value(Type.INT, expr_ast.get("val"))
-    #     if expr_ast.elem_type == InterpreterBase.STRING_NODE:
-    #         return Value(Type.STRING, expr_ast.get("val"))
-    #     if expr_ast.elem_type == InterpreterBase.BOOL_NODE:
-    #         return Value(Type.BOOL, expr_ast.get("val"))
-        
-    #     # Lazy evaluation for variables and operations
-    #     if expr_ast.elem_type == InterpreterBase.VAR_NODE:
-    #         var_name = expr_ast.get("name")
-    #         var_value = self.env.get(var_name)
-    #         if var_value is None:
-    #             super().error(ErrorType.NAME_ERROR, f"Variable {var_name} not found")
-    #         if isinstance(var_value, LazyValue):
-    #             evaluated_value = var_value.value()  # Evaluate if needed
-    #             self.env.set(var_name, evaluated_value)  # Cache the result
-    #             return evaluated_value
-    #         if not isinstance(var_value, Value):
-    #             super().error(ErrorType.TYPE_ERROR, "Variable must be a Value object")
-    #         return var_value
-    #     # if expr_ast.elem_type == InterpreterBase.VAR_NODE:
-    #     #     var_name = expr_ast.get("name")
-    #     #     return LazyValue(lambda: self.env.get(var_name).value())  # Lazy lookup
-    #     if expr_ast.elem_type == InterpreterBase.FCALL_NODE:
-    #             return self.__call_func(expr_ast)  # Fully resolve the function call
-
-    #     if expr_ast.elem_type in Interpreter.BIN_OPS:
-    #         return self.__eval_op(expr_ast)  # Resolve binary operations
-
-    #     if expr_ast.elem_type == Interpreter.NEG_NODE:
-    #         return self.__eval_unary(expr_ast, Type.INT, lambda x: -x)
-
-    #     if expr_ast.elem_type == Interpreter.NOT_NODE:
-    #         return self.__eval_unary(expr_ast, Type.BOOL, lambda x: not x)
-        
-    #     # Ensure we raise an error if the type is unrecognized
-    #     super().error(ErrorType.TYPE_ERROR, f"Unsupported expression type: {expr_ast.elem_type}")
     def __eval_expr(self, expr_ast):
         # Force evaluation if the expression is a LazyValue
         if isinstance(expr_ast, LazyValue):
-            return expr_ast.value()
+            result = expr_ast.value()
+            print(f"DEBUG: Evaluating LazyValue for {expr_ast}: {result}")
+            return result
         
         if expr_ast.elem_type == InterpreterBase.NIL_NODE:
             return Interpreter.NIL_VALUE
@@ -240,11 +220,14 @@ class Interpreter(InterpreterBase):
         if expr_ast.elem_type == InterpreterBase.VAR_NODE:
             var_name = expr_ast.get("name")
             var_value = self.env.get(var_name)
+            print(f"DEBUG: Accessing variable {var_name}: {var_value}")
             if var_value is None:
                 super().error(ErrorType.NAME_ERROR, f"Variable {var_name} not found")
-            # If the variable value is a LazyValue, evaluate it
+
+            # Evaluate lazy values and cache the result
             if isinstance(var_value, LazyValue):
                 evaluated_value = var_value.value()
+                print(f"DEBUG: Evaluating LazyValue for {var_name}: {evaluated_value}")
                 self.env.set(var_name, evaluated_value)  # Cache the evaluated result
                 return evaluated_value
             return var_value
@@ -262,7 +245,7 @@ class Interpreter(InterpreterBase):
             return self.__eval_unary(expr_ast, Type.BOOL, lambda x: not x)
 
         super().error(ErrorType.TYPE_ERROR, f"Unsupported expression type: {expr_ast.elem_type}")
-    
+
     def __eval_op(self, arith_ast):
     # Evaluate the left operand
         left_value_obj = self.__eval_expr(arith_ast.get("op1"))
@@ -329,7 +312,10 @@ class Interpreter(InterpreterBase):
                 f"Incompatible operator {arith_ast.elem_type} for type {left_value_obj.type()}",
             )
         f = self.op_to_lambda[left_value_obj.type()][arith_ast.elem_type]
-        return f(left_value_obj, right_value_obj)
+        
+        result=  f(left_value_obj, right_value_obj)
+        print(f"DEBUG: Result of operation {arith_ast.elem_type}: {result.value()}")
+        return result
     # def __eval_op(self, arith_ast):
     #     left_value_obj = self.__eval_expr(arith_ast.get("op1"))
     #     right_value_obj = self.__eval_expr(arith_ast.get("op2"))
@@ -433,7 +419,7 @@ class Interpreter(InterpreterBase):
         )
 
     def __do_if(self, if_ast):
-        cond_ast = if_ast.get("condition")
+        cond_ast = LazyValue(lambda: self.__eval_expr(if_ast.get("condition")))
         result = self.__eval_expr(cond_ast) 
         #result = self.__eval_expr(cond_ast).value()  # Force evaluation here
         if result.type() != Type.BOOL:
@@ -455,8 +441,8 @@ class Interpreter(InterpreterBase):
 
     def __do_for(self, for_ast):
         init_ast = for_ast.get("init") 
-        cond_ast = for_ast.get("condition")
-        update_ast = for_ast.get("update") 
+        cond_ast = LazyValue(lambda: self.__eval_expr(for_ast.get("condition")))
+        update_ast = LazyValue(lambda: self.__run_statement(for_ast.get("update")))
 
         self.__run_statement(init_ast)  # initialize counter variable
         run_for = Interpreter.TRUE_VALUE
@@ -503,6 +489,36 @@ class Interpreter(InterpreterBase):
 
         # Raise an exception with the string value
         raise Exception(exception_value.value())
+   
+    def __do_try(self, try_ast):
+        # The try node will help identify the statements inside the try block
+        # Catch nodes will be used to match exception types
+        # To handle variable shadowing, need to execute try block in a new scope
+        # I fno exception then program cont but if raised,match with catch blocks to see which one
+        # Tricky part: if no catch block in curr scope propogate outwards till it is caught
+        try_stm = try_ast.get("statements")
+        catch_nodes = try_ast.get("catchers")
+
+        try:
+            self.env.push_block()  # New scope for try
+            status, return_val = self.__run_statements(try_stm)
+            self.env.pop_block()
+            return status, return_val  # If no exceptions, return as normal
+        
+        except Exception as e:
+            # Handle exceptions raised within the try block
+            self.env.pop_block()  # Ensure try scope is cleaned up
+
+            except_msg = str(e)
+            for catch_node in catch_nodes:
+                catch_type = catch_node.get("exception_type")
+                if catch_type == except_msg:  # Match the exception type
+                    self.env.push_block()  # New scope for the catch block
+                    status, return_val = self.__run_statements(catch_node.get("statements"))
+                    self.env.pop_block()
+                    return status, return_val
+            # If no matching catch block, propagate the exception
+            raise e
 
   
 def main():
@@ -510,17 +526,20 @@ def main():
 func main() {
     var x;
     var y;
-    y = 3;
-    x = y + 1;
-    y = 10;
-    print(x);
+    x = 5;
+    y = x + 10;
+    x = 100;
+    print(y); /* still prints 15 */
 }
+
 
 /*
 *OUT*
-4
+15
 *OUT*
-*/     """
+*/
+
+   """
 
 
     interpreter = Interpreter()
