@@ -9,18 +9,17 @@ class Type:
     NIL = "nil"
 
 class LazyValue:
-    def __init__(self, expr_func):
+    def __init__(self, expr_func,):
         self.expr_func = expr_func  # A closure that represents the expression
         self.cached_value = None   # Cache for the evaluated value
         self.evaluated = False     # Flag to track if it has been evaluated
 
     def value(self):
+        
         if not self.evaluated:
-            try:
-                self.cached_value = self.expr_func()  # Evaluate the expression
-                self.evaluated = True
-            except Exception as e:
-                raise e  # Re-raise the exception to be handled later
+            self.cached_value = self.expr_func()  # Evaluate and cache the result
+            self.evaluated = True
+            #print(f"LazyValue evaluated to: {type(self.cached_value)}")
         return self.cached_value
 
 # Represents a value, which has a type and its value
