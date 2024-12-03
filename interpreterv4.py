@@ -507,22 +507,28 @@ class Interpreter(InterpreterBase):
   
 def main():
     program = """
-func divide(a, b) {
-  return a / b;
+func f(x) {
+  print("running f");
+  return g(5) + 3;
+}
+
+func g(x) {
+  print("running g");
+  return x;
 }
 
 func main() {
-  try {
-    var result;
-    result = divide(10, 0);  /* evaluation deferred due to laziness */
-    print("Result: ", result); /* evaluation occurs here */
-  }
-  catch "div0" {
-    print("Caught division by zero!");
-  }
+    f(3);
+    print("end");
 }
 
 
+/*
+*OUT*
+running f
+end
+*OUT*
+*/
 
    """
 
