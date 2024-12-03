@@ -19,7 +19,6 @@ class EnvironmentManager:
             if symbol in env:
                 env[symbol] = value
                 return True
-
         return False
 
     # create a new symbol in the top-most environment, regardless of whether that symbol exists
