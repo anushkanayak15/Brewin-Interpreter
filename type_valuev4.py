@@ -9,7 +9,7 @@ class Type:
     NIL = "nil"
 
 class LazyValue:
-    def __init__(self, expr_func,):
+    def __init__(self, expr_func):
         self.expr_func = expr_func  # A closure that represents the expression
         self.cached_value = None   # Cache for the evaluated value
         self.evaluated = False     # Flag to track if it has been evaluated
