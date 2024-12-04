@@ -434,9 +434,11 @@ class Interpreter(InterpreterBase):
         )
         self.op_to_lambda[Type.INT]["/"] = lambda x, y: self.__handle_div_0(x,y)
 
-    def __do_if(self, if_ast):
-        cond_ast = LazyValue(lambda: self.__eval_expr(if_ast.get("condition")))
-        result = self.__eval_expr(cond_ast) 
+    def __do_if(self, if_ast, captured_env = None):
+        if captured_env is None:
+            captured_env = self.env.copy()
+        cond_ast = LazyValue(lambda: self.__eval_expr(if_ast.get("condition"),captured_env))
+        result = self.__eval_expr(cond_ast,captured_env) 
         #result = self.__eval_expr(cond_ast).value()  # Force evaluation here
         if result.type() != Type.BOOL:
             super().error(
@@ -445,25 +447,27 @@ class Interpreter(InterpreterBase):
             )
         if result.value():
             statements = if_ast.get("statements")
-            status, return_val = self.__run_statements(statements)
+            status, return_val = self.__run_statements(statements,captured_env)
             return (status, return_val)
         else:
             else_statements = if_ast.get("else_statements")
             if else_statements is not None:
-                status, return_val = self.__run_statements(else_statements)
+                status, return_val = self.__run_statements(else_statements,captured_env)
                 return (status, return_val)
 
         return (ExecStatus.CONTINUE, Interpreter.NIL_VALUE)
 
-    def __do_for(self, for_ast):
+    def __do_for(self, for_ast,captured_env=None):
+        if captured_env is None:
+            captured_env = self.env.copy()
         init_ast = for_ast.get("init") 
-        cond_ast = LazyValue(lambda: self.__eval_expr(for_ast.get("condition")))
-        update_ast = LazyValue(lambda: self.__run_statement(for_ast.get("update")))
+        cond_ast = LazyValue(lambda: self.__eval_expr(for_ast.get("condition"),captured_env))
+        update_ast = LazyValue(lambda: self.__run_statement(for_ast.get("update"),captured_env))
 
-        self.__run_statement(init_ast)  # initialize counter variable
+        self.__run_statement(init_ast,captured_env)  # initialize counter variable
         run_for = Interpreter.TRUE_VALUE
         while run_for.value():
-            run_for = self.__eval_expr(cond_ast)  # check for-loop condition
+            run_for = self.__eval_expr(cond_ast,captured_env)  # check for-loop condition
             if run_for.type() != Type.BOOL:
                 super().error(
                     ErrorType.TYPE_ERROR,
@@ -471,10 +475,10 @@ class Interpreter(InterpreterBase):
                 )
             if run_for.value():
                 statements = for_ast.get("statements")
-                status, return_val = self.__run_statements(statements)
+                status, return_val = self.__run_statements(statements,captured_env)
                 if status == ExecStatus.RETURN:
                     return status, return_val
-                self.__run_statement(update_ast)  # update counter variable
+                self.__run_statement(update_ast,captured_env)  # update counter variable
 
         return (ExecStatus.CONTINUE, Interpreter.NIL_VALUE)
 
@@ -537,27 +541,75 @@ class Interpreter(InterpreterBase):
   
 def main():
     program = """
-
 func foo() {
-  print("foo");
-  return bar();
+  if (foob()) {
+    print("a");
+    raise "a";
+  }
+  else {
+    print("b");
+    raise "b";
+  }
+  print("c");
+  raise "c";
 }
 
-func bar() {
-  print("bar");
-  raise "a";
+func foob() {
+  var i;
+  for (i = foot(); i < 1; i = i+1) {
+    print("d");
+    raise "d";
+  }
+}
+
+func foot() {
+  var i;
+  for (i = 0; fool(); i = i+1) {
+    print("e");
+    raise "e";
+  }
+}
+
+func fool() {
+  var i;
+  for (i = 0; i < 1; i = food()) {
+    var d;
+  }
+  print("f");
+  raise "f";
+}
+
+func food() {
+  var i;
+  for (i = 0; i < 3; i = i+1) {
+    print("inner");
+    bar(i);
+  }
+}
+
+func bar(i) {
+  if (i == 2) {
+    raise "x";
+  }
 }
 
 func main() {
-  foo();
+  try {
+    foo();
+  }
+  catch "x" {
+    print("x");
+  }
 }
-/*
-OUT
-foo
-OUT
-# we dont need to run the return as it is a standalone func
-*/
 
+/*
+*OUT*
+inner
+inner
+inner
+x
+*OUT*
+*/
 
 
    """
