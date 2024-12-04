@@ -12,17 +12,43 @@ class LazyValue:
     def __init__(self, expr_func):
         self.expr_func = expr_func  # A closure that represents the expression
         self.cached_value = None   # Cache for the evaluated value
-        self.evaluated = False     # Flag to track if it has been evaluated
-
-    def value(self):
+        self.evaluating = False 
         
-        if not self.evaluated:
+        self.evaluated = False     # Flag to track if it has been evaluated
+    def value(self):
+        """
+        Evaluate the expression if it hasn't been evaluated, or return the cached result.
+        :return: The evaluated result of the expression.
+        """
+        if self.evaluated:
+            return self.cached_value
+        
+        if self.evaluating:
+            # print(f"DEBUG: Circular dependency detected in LazyValue with expr_func: {self.expr_func}")
+            raise RuntimeError("Circular dependency detected during LazyValue evaluation")
+
+        try:
+            self.evaluating = True
+            # print("DEBUG: Evaluating LazyValue...")
             self.cached_value = self.expr_func()  # Evaluate and cache the result
             self.evaluated = True
-            #print(f"LazyValue evaluated to: {type(self.cached_value)}")
+            # print(f"DEBUG: LazyValue evaluated: {self.cached_value}")
+        except Exception as e:
+            # print(f"DEBUG: LazyValue evaluation failed: {e}")
+            raise e
+        finally:
+            self.evaluating = False  # Reset evaluating flag
         return self.cached_value
+    def iseval(self):
+        """
+        Check if the value has been evaluated.
+        :return: True if evaluated, False otherwise.
+        """
+        return self.evaluated
 
 # Represents a value, which has a type and its value
+
+#takes in lambda func and evaluated which is the flag- jen
 class Value:
     def __init__(self, type, value=None):
         self.t = type
