@@ -236,7 +236,7 @@ class Interpreter(InterpreterBase):
         
         try:
             if captured_env is None:
-                captured_env = self.env.copy()
+                captured_env = self.env
             if isinstance(expr_ast, LazyValue):
                 result = expr_ast.value()
                 return result
@@ -260,6 +260,7 @@ class Interpreter(InterpreterBase):
                     # print(f"DEBUG: Accessing variable {var_name}: {var_value}")
 
                 if var_value is None:
+                    print(f"DEBUG: Variable '{var_name}' not found in captured environment: {captured_env}")
                     super().error(ErrorType.NAME_ERROR, f"Variable {var_name} not found")
                 return var_value.value() if isinstance(var_value, LazyValue) else var_value
             if expr_ast.elem_type == InterpreterBase.FCALL_NODE:
@@ -542,18 +543,28 @@ class Interpreter(InterpreterBase):
   
 def main():
     program = """
-func main() {
-  var x;
-  x = foo(y);
-  print("OK");
-  print(x);  /* NAME_ERROR due to undefined y is deferred to this line */
+func evaluate(a) {
+  print(a);
 }
 
-
+func main() {
+ var a;
+ var b;
+ a = 10;
+ b = a + 1;
+ a = a + 10;
+ b = b + a;
+ print(a);
+ a = a+1;
+ evaluate(a);
+ 
+ print(b);
+}
 /*
 *OUT*
-OK
-ErrorType.NAME_ERROR
+20
+21
+31
 *OUT*
 */
 
