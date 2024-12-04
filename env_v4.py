@@ -1,5 +1,6 @@
 # The EnvironmentManager class keeps a mapping between each variable name (aka symbol)
 # in a brewin program and the Value object, which stores a type, and a value.
+import copy
 class EnvironmentManager:
     def __init__(self):
         self.environment = []
@@ -45,3 +46,8 @@ class EnvironmentManager:
     # used when we exit a nested block to discard the environment for that block
     def pop_func(self):
         self.environment.pop()
+
+    def copy(self):
+        # Create a deep copy of the current environment
+        return copy.deepcopy(self)
+
