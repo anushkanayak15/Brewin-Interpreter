@@ -117,6 +117,7 @@ class Interpreter(InterpreterBase):
             return self.__call_input(func_name, actual_args)
 
         func_ast = self.__get_func_by_name(func_name, len(actual_args))
+        
         formal_args = func_ast.get("args")
         if len(actual_args) != len(formal_args):
             super().error(
@@ -136,10 +137,21 @@ class Interpreter(InterpreterBase):
         # and add the formal arguments to the activation record
         for arg_name, value in args.items():
           self.env.create(arg_name, value)
-        _, return_val = self.__run_statements(func_ast.get("statements"))
-        self.env.pop_func()
-        #return return_val
-        return return_val.value() if isinstance(return_val, LazyValue) else return_val
+        # _, return_val = self.__run_statements(func_ast.get("statements"))
+        # self.env.pop_func()
+        # #return return_val
+        # return return_val.value() if isinstance(return_val, LazyValue) else return_val
+        try:
+            # Run the function's statements
+            _, return_val = self.__run_statements(func_ast.get("statements"))
+            # Return the evaluated return value if it exists
+            return return_val.value() if isinstance(return_val, LazyValue) else return_val
+        except Exception as e:
+            # Ensure exceptions are propagated properly
+            raise e
+        finally:
+            # Always pop the function's activation record to clean up
+            self.env.pop_func()
 
     # def __call_print(self, args):
     #     output = ""
@@ -205,25 +217,6 @@ class Interpreter(InterpreterBase):
                 ErrorType.NAME_ERROR, f"Undefined variable {var_name} in assignment"
             )
    
-        # print(f"DEBUG: Created LazyValue for {var_name} with expression: {expr}")
-        # Before setting the lazy expression, evaluate the current value of the variable
-        # and check if it references itself.
-        # evaluated_value = lazy_expr.value()  # Evaluate it now to capture the current state
-
-        # if not self.env.set(var_name, Value(evaluated_value.type(), evaluated_value.value())):
-        #     super().error(
-        #         ErrorType.NAME_ERROR, f"Undefined variable {var_name} in assignment"
-        #     )
-        # current_value = self.env.get(var_name)
-        # if isinstance(current_value, LazyValue):
-        #     current_value = current_value.value()
-        # # print(f"DEBUG: Current value of {var_name}: {current_value}")
-        # # Ensure the lazy value captures the evaluated current state safely
-        # if not self.env.set(var_name, lazy_expr):
-        #     super().error(
-        #         ErrorType.NAME_ERROR, f"Undefined variable {var_name} in assignment"
-        #     )
-
         
     def __var_def(self, var_ast):
         var_name = var_ast.get("name")
@@ -267,6 +260,7 @@ class Interpreter(InterpreterBase):
                 return self.__call_func(expr_ast,captured_env)
             if expr_ast.elem_type in Interpreter.BIN_OPS:
                 return self.__eval_op(expr_ast,captured_env)
+                
             if expr_ast.elem_type == Interpreter.NEG_NODE:
                 return self.__eval_unary(expr_ast, Type.INT, lambda x: -x,captured_env)
             if expr_ast.elem_type == Interpreter.NOT_NODE:
@@ -278,7 +272,7 @@ class Interpreter(InterpreterBase):
 
     def __eval_op(self, arith_ast,captured_env=None):
         if captured_env is None:
-            captured_env = self.env.copy()
+            captured_env = self.env
     # Evaluate the left operand
         left_value_obj = self.__eval_expr(arith_ast.get("op1"),captured_env)
         if isinstance(left_value_obj, LazyValue):
@@ -543,29 +537,25 @@ class Interpreter(InterpreterBase):
   
 def main():
     program = """
-func evaluate(a) {
-  print(a);
+
+func foo() {
+  print("foo");
+  return bar();
+}
+
+func bar() {
+  print("bar");
+  raise "a";
 }
 
 func main() {
- var a;
- var b;
- a = 10;
- b = a + 1;
- a = a + 10;
- b = b + a;
- print(a);
- a = a+1;
- evaluate(a);
- 
- print(b);
+  foo();
 }
 /*
-*OUT*
-20
-21
-31
-*OUT*
+OUT
+foo
+OUT
+# we dont need to run the return as it is a standalone func
 */
 
 
