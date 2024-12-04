@@ -35,7 +35,8 @@ class Interpreter(InterpreterBase):
         ast = parse_program(program)
         self.__set_up_function_table(ast)
         self.env = EnvironmentManager()
-        self.__call_func_aux("main", [])
+        captured_env = self.env.copy()
+        self.__call_func_aux("main", [],captured_env)
 
     def __set_up_function_table(self, ast):
         self.func_name_to_ast = {}
@@ -57,12 +58,14 @@ class Interpreter(InterpreterBase):
             )
         return candidate_funcs[num_params]
 
-    def __run_statements(self, statements):
+    def __run_statements(self, statements,captured_env=None):
+        if captured_env is None:
+            captured_env = self.env.copy()
         self.env.push_block()
         for statement in statements:
-            if self.trace_output:
-                print(statement)
-            status, return_val = self.__run_statement(statement)
+            # if self.trace_output:
+            #     print(statement)
+            status, return_val = self.__run_statement(statement, captured_env)
             if status == ExecStatus.RETURN:
                 self.env.pop_block()
                 return (status, return_val)
@@ -70,7 +73,9 @@ class Interpreter(InterpreterBase):
         self.env.pop_block()
         return (ExecStatus.CONTINUE, Interpreter.NIL_VALUE)
 
-    def __run_statement(self, statement):
+    def __run_statement(self, statement,captured_env):
+        if captured_env is None:
+            captured_env = self.env.copy()
         status = ExecStatus.CONTINUE
         return_val = None
         # Handle try catch block
@@ -80,7 +85,7 @@ class Interpreter(InterpreterBase):
         # # Catch nodes only appear in try blocks
         #     raise Exception("Catch nodes are not standalone statements")  
         elif statement.elem_type == InterpreterBase.FCALL_NODE:
-            self.__call_func(statement)
+            self.__call_func(statement,captured_env)
         elif statement.elem_type == "=":
             self.__assign(statement)
         elif statement.elem_type == InterpreterBase.VAR_DEF_NODE:
@@ -98,12 +103,14 @@ class Interpreter(InterpreterBase):
 
         return (status, return_val)
     
-    def __call_func(self, call_node):
+    def __call_func(self, call_node,captured_env):
+        if captured_env is None:
+            captured_env = self.env.copy()
         func_name = call_node.get("name")
         actual_args = call_node.get("args")
-        return self.__call_func_aux(func_name, actual_args)
+        return self.__call_func_aux(func_name, actual_args,captured_env)
 
-    def __call_func_aux(self, func_name, actual_args):
+    def __call_func_aux(self, func_name, actual_args,captured_env):
         if func_name == "print":
             return self.__call_print(actual_args)
         if func_name == "inputi" or func_name == "inputs":
@@ -123,7 +130,7 @@ class Interpreter(InterpreterBase):
             #result = copy.copy(self.__eval_expr(actual_ast))
             #each ast should be wrapped in lazy val before added
             arg_name = formal_ast.get("name")
-            args[arg_name] = LazyValue(lambda actual_ast = actual_ast: self.__eval_expr(actual_ast)) # evaluated lazily
+            args[arg_name] = LazyValue(lambda actual_ast = actual_ast: self.__eval_expr(actual_ast,captured_env)) # evaluated lazily
               # then create the new activation record 
         self.env.push_func()
         # and add the formal arguments to the activation record
@@ -148,7 +155,7 @@ class Interpreter(InterpreterBase):
             if isinstance(result, LazyValue):
                 result = result.value()  # Force evaluation if it's a LazyValue
             if not isinstance(result, Value):
-                print(f"DEBUG: Invalid print argument of type {type(result)} with value {result}")
+                #  print(f"DEBUG: Invalid print argument of type {type(result)} with value {result}")
                 raise TypeError("print expects a Value object.")
             output += get_printable(result)
         super().output(output)
@@ -176,24 +183,46 @@ class Interpreter(InterpreterBase):
         # evaluated_value = self.__eval_expr(expr)
         # print(f"DEBUG: Assigning to {var_name}: {evaluated_value}")
 
-        # Create a lazy expression for the assignment
-        lazy_expr = LazyValue(
-            lambda: copy.copy(self.__eval_expr(expr))
+        # to do : create a copy of the environment which i then pass to the lambda
+        # eval expr i pass captured environ 
+        # need to make sure eval expr if there is a captured environ use that else leave it working as it is. 
+        # need to ensure that ehenever this lambda func is created the environ at this current point is passed. 
+        #so  if i have captured environ then i use that else use the curr environemnt
+
+        # # Create a lazy expression for the assignment
+        # lazy_expr = LazyValue(
+        #     lambda: copy.copy(self.__eval_expr(expr))
             
-        )
-        print(f"DEBUG: Created LazyValue for {var_name} with expression: {expr}")
-        # Before setting the lazy expression, evaluate the current value of the variable
-        # and check if it references itself.
-        current_value = self.env.get(var_name)
-        if isinstance(current_value, LazyValue):
-            current_value = current_value.value()
-        print(f"DEBUG: Current value of {var_name}: {current_value}")
-        # Ensure the lazy value captures the evaluated current state safely
+        # )
+        # Capture the current environment when creating the lazy expression
+        captured_env = self.env.copy()
+
+        # Create a lazy expression with the captured environment
+        lazy_expr = LazyValue(lambda captured_env=captured_env: self.__eval_expr(expr, captured_env))
+        # Set the lazy expression in the environment
         if not self.env.set(var_name, lazy_expr):
             super().error(
                 ErrorType.NAME_ERROR, f"Undefined variable {var_name} in assignment"
             )
+   
+        # print(f"DEBUG: Created LazyValue for {var_name} with expression: {expr}")
+        # Before setting the lazy expression, evaluate the current value of the variable
+        # and check if it references itself.
+        # evaluated_value = lazy_expr.value()  # Evaluate it now to capture the current state
 
+        # if not self.env.set(var_name, Value(evaluated_value.type(), evaluated_value.value())):
+        #     super().error(
+        #         ErrorType.NAME_ERROR, f"Undefined variable {var_name} in assignment"
+        #     )
+        # current_value = self.env.get(var_name)
+        # if isinstance(current_value, LazyValue):
+        #     current_value = current_value.value()
+        # # print(f"DEBUG: Current value of {var_name}: {current_value}")
+        # # Ensure the lazy value captures the evaluated current state safely
+        # if not self.env.set(var_name, lazy_expr):
+        #     super().error(
+        #         ErrorType.NAME_ERROR, f"Undefined variable {var_name} in assignment"
+        #     )
 
         
     def __var_def(self, var_ast):
@@ -202,8 +231,12 @@ class Interpreter(InterpreterBase):
             super().error(
                 ErrorType.NAME_ERROR, f"Duplicate definition for variable {var_name}"
             )
-    def __eval_expr(self, expr_ast):
+            # one potential thing add a captured environemnt in the func
+    def __eval_expr(self, expr_ast,captured_env=None):
+        
         try:
+            if captured_env is None:
+                captured_env = self.env.copy()
             if isinstance(expr_ast, LazyValue):
                 result = expr_ast.value()
                 return result
@@ -222,28 +255,31 @@ class Interpreter(InterpreterBase):
 
             if expr_ast.elem_type == InterpreterBase.VAR_NODE:
                 var_name = expr_ast.get("name")
-                var_value = self.env.get(var_name)
+                #var_value = self.env.get(var_name)
+                var_value = captured_env.get(var_name)  
                     # print(f"DEBUG: Accessing variable {var_name}: {var_value}")
 
                 if var_value is None:
                     super().error(ErrorType.NAME_ERROR, f"Variable {var_name} not found")
                 return var_value.value() if isinstance(var_value, LazyValue) else var_value
             if expr_ast.elem_type == InterpreterBase.FCALL_NODE:
-                return self.__call_func(expr_ast)
+                return self.__call_func(expr_ast,captured_env)
             if expr_ast.elem_type in Interpreter.BIN_OPS:
-                return self.__eval_op(expr_ast)
+                return self.__eval_op(expr_ast,captured_env)
             if expr_ast.elem_type == Interpreter.NEG_NODE:
-                return self.__eval_unary(expr_ast, Type.INT, lambda x: -x)
+                return self.__eval_unary(expr_ast, Type.INT, lambda x: -x,captured_env)
             if expr_ast.elem_type == Interpreter.NOT_NODE:
-                return self.__eval_unary(expr_ast, Type.BOOL, lambda x: not x)
+                return self.__eval_unary(expr_ast, Type.BOOL, lambda x: not x,captured_env)
 
             super().error(ErrorType.TYPE_ERROR, f"Unsupported expression type: {expr_ast.elem_type}")
         except Exception as e:
             raise e  
 
-    def __eval_op(self, arith_ast):
+    def __eval_op(self, arith_ast,captured_env=None):
+        if captured_env is None:
+            captured_env = self.env.copy()
     # Evaluate the left operand
-        left_value_obj = self.__eval_expr(arith_ast.get("op1"))
+        left_value_obj = self.__eval_expr(arith_ast.get("op1"),captured_env)
         if isinstance(left_value_obj, LazyValue):
             left_value_obj = left_value_obj.value()  # Ensure LazyValue is evaluated
 
@@ -258,7 +294,7 @@ class Interpreter(InterpreterBase):
                 return Value(Type.BOOL, False)
 
             # Evaluate the right operand only if needed
-            right_value_obj = self.__eval_expr(arith_ast.get("op2"))
+            right_value_obj = self.__eval_expr(arith_ast.get("op2"),captured_env)
             
             if isinstance(right_value_obj, LazyValue):
                 right_value_obj = right_value_obj.value()
@@ -280,7 +316,7 @@ class Interpreter(InterpreterBase):
                 return Value(Type.BOOL, True)
 
             # Evaluate the right operand only if needed
-            right_value_obj = self.__eval_expr(arith_ast.get("op2"))
+            right_value_obj = self.__eval_expr(arith_ast.get("op2"),captured_env)
             if isinstance(right_value_obj, LazyValue):
                 right_value_obj = right_value_obj.value()
             if right_value_obj.type() != Type.BOOL:
@@ -290,7 +326,7 @@ class Interpreter(InterpreterBase):
             return Value(Type.BOOL, left_value_obj.value() or right_value_obj.value())
 
         # Handle other operators (no short-circuiting required)
-        right_value_obj = self.__eval_expr(arith_ast.get("op2"))
+        right_value_obj = self.__eval_expr(arith_ast.get("op2"),captured_env)
         if isinstance(right_value_obj, LazyValue):
             right_value_obj = right_value_obj.value()
         
@@ -309,7 +345,7 @@ class Interpreter(InterpreterBase):
         f = self.op_to_lambda[left_value_obj.type()][arith_ast.elem_type]
         
         result=  f(left_value_obj, right_value_obj)
-        print(f"DEBUG: Result of operation {arith_ast.elem_type}: {result.value()}")
+        # print(f"DEBUG: Result of operation {arith_ast.elem_type}: {result.value()}")
         return result
     
     def __compatible_types(self, oper, obj1, obj2):
@@ -503,32 +539,25 @@ class Interpreter(InterpreterBase):
                     return status, return_val
             # If no matching catch block, propagate the exception
             raise e
-
   
 def main():
     program = """
-func f(x) {
-  print("running f");
-  return g(5) + 3;
-}
-
-func g(x) {
-  print("running g");
-  return x;
-}
-
 func main() {
-    f(3);
-    print("end");
+  var x;
+  x = foo(y);
+  print("OK");
+  print(x);  /* NAME_ERROR due to undefined y is deferred to this line */
 }
 
 
 /*
 *OUT*
-running f
-end
+OK
+ErrorType.NAME_ERROR
 *OUT*
 */
+
+
 
    """
 
