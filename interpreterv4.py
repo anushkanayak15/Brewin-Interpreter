@@ -355,8 +355,10 @@ class Interpreter(InterpreterBase):
         return Value(x.type(), x.value() // y.value())
     
 
-    def __eval_unary(self, arith_ast, t, f):
-        value_obj = self.__eval_expr(arith_ast.get("op1"))
+    def __eval_unary(self, arith_ast, t, f,captured_env=None):
+        if captured_env is None:
+            captured_env = self.env
+        value_obj = self.__eval_expr(arith_ast.get("op1"),captured_env)
         if value_obj.type() != t:
             super().error(
                 ErrorType.TYPE_ERROR,
@@ -541,73 +543,24 @@ class Interpreter(InterpreterBase):
   
 def main():
     program = """
-func foo() {
-  if (foob()) {
-    print("a");
-    raise "a";
-  }
-  else {
-    print("b");
-    raise "b";
-  }
-  print("c");
-  raise "c";
-}
 
-func foob() {
-  var i;
-  for (i = foot(); i < 1; i = i+1) {
-    print("d");
-    raise "d";
-  }
-}
-
-func foot() {
-  var i;
-  for (i = 0; fool(); i = i+1) {
-    print("e");
-    raise "e";
-  }
-}
-
-func fool() {
-  var i;
-  for (i = 0; i < 1; i = food()) {
-    var d;
-  }
-  print("f");
-  raise "f";
-}
-
-func food() {
-  var i;
-  for (i = 0; i < 3; i = i+1) {
-    print("inner");
-    bar(i);
-  }
-}
-
-func bar(i) {
-  if (i == 2) {
-    raise "x";
-  }
+func bar(x) {
+ print("bar: ", x);
+ return x;
 }
 
 func main() {
-  try {
-    foo();
-  }
-  catch "x" {
-    print("x");
-  }
+ var a;
+ a = -bar(1);
+ print("---");
+ print(a);
 }
 
 /*
 *OUT*
-inner
-inner
-inner
-x
+---
+bar: 1
+-1
 *OUT*
 */
 
