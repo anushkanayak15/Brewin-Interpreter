@@ -10,6 +10,7 @@ class EnvironmentManager:
         cur_func_env = self.environment[-1]
         for env in reversed(cur_func_env):
             if symbol in env:
+                # print(f"DEBUG: Found symbol '{symbol}' in environment: {env}")
                 return env[symbol]
 
         return None
@@ -48,6 +49,9 @@ class EnvironmentManager:
         self.environment.pop()
 
     def copy(self):
+        # print(f"DEBUG: Copying environment: {self.environment}")
         # Create a deep copy of the current environment
         return copy.deepcopy(self)
+        # copied_env = copy.deepcopy(self.environment)
+        # return copied_env
 
