@@ -16,17 +16,15 @@ class LazyValue:
         
         self.evaluated = False     # Flag to track if it has been evaluated
     def value(self):
-        """
-        Evaluate the expression if it hasn't been evaluated, or return the cached result.
-        :return: The evaluated result of the expression.
-        """
+       
         if self.evaluated:
+            # print(f"DEBUG: Returning cached value: {self.cached_value}")
             return self.cached_value
         
         if self.evaluating:
-            # print(f"DEBUG: Circular dependency detected in LazyValue with expr_func: {self.expr_func}")
             raise RuntimeError("Circular dependency detected during LazyValue evaluation")
-
+        # print("DEBUG: Evaluating LazyValue...")
+        
         try:
             self.evaluating = True
             # print("DEBUG: Evaluating LazyValue...")
