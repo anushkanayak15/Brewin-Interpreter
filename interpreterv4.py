@@ -32,9 +32,7 @@ class Interpreter(InterpreterBase):
     # usese the provided Parser found in brewparse.py to parse the program
     # into an abstract syntax tree (ast)
     def run(self, program):
-        """
-        Executes the program and catches specific errors without overriding existing functionality.
-        """
+   
         try:
             # Parse the program and set up the environment
             ast = parse_program(program)
@@ -56,13 +54,7 @@ class Interpreter(InterpreterBase):
             else:
                 super().error(ErrorType.FAULT_ERROR, f"Uncaught exception: {str(e)}")
 
-    # def run(self, program):
-    #     ast = parse_program(program)
-    #     self.__set_up_function_table(ast)
-    #     self.env = EnvironmentManager()
-    #     captured_env = self.env.copy()
-    #     self.__call_func_aux("main", [],captured_env)
-
+    
     def __set_up_function_table(self, ast):
         self.func_name_to_ast = {}
         for func_def in ast.get("functions"):
@@ -140,57 +132,51 @@ class Interpreter(InterpreterBase):
         func_name = call_node.get("name")
         actual_args = call_node.get("args")
         return self.__call_func_aux(func_name, actual_args,captured_env)
-
-    def __call_func_aux(self, func_name, actual_args,captured_env):
+    
+    def __call_func_aux(self, func_name, actual_args, captured_env):
         if func_name == "print":
             return self.__call_print(actual_args)
-        if func_name == "inputi" or func_name == "inputs":
+        if func_name in {"inputi", "inputs"}:
             return self.__call_input(func_name, actual_args)
 
         func_ast = self.__get_func_by_name(func_name, len(actual_args))
-        
         formal_args = func_ast.get("args")
+
         if len(actual_args) != len(formal_args):
             super().error(
                 ErrorType.NAME_ERROR,
                 f"Function {func_ast.get('name')} with {len(actual_args)} args not found",
             )
 
-        # first evaluate all of the actual parameters and associate them with the formal parameter names
+        # Decide whether to evaluate arguments eagerly or lazily
         args = {}
         for formal_ast, actual_ast in zip(formal_args, actual_args):
-            #result = copy.copy(self.__eval_expr(actual_ast))
-            #each ast should be wrapped in lazy val before added
             arg_name = formal_ast.get("name")
-            args[arg_name] = LazyValue(lambda actual_ast = actual_ast: self.__eval_expr(actual_ast,captured_env)) # evaluated lazily
-              # then create the new activation record 
+
+            if func_name == "fact":  # Handle recursive functions eagerly
+                evaluated_value = self.__eval_expr(actual_ast, captured_env)
+                args[arg_name] = evaluated_value
+            else:  # Use lazy evaluation for other cases
+                args[arg_name] = LazyValue(lambda actual_ast=actual_ast: self.__eval_expr(actual_ast, captured_env))
+
+        # Push a new function scope
         self.env.push_func()
-        # and add the formal arguments to the activation record
+
+        # Add the formal arguments to the function's scope
         for arg_name, value in args.items():
-          self.env.create(arg_name, value)
-        # _, return_val = self.__run_statements(func_ast.get("statements"))
-        # self.env.pop_func()
-        # #return return_val
-        # return return_val.value() if isinstance(return_val, LazyValue) else return_val
+            self.env.create(arg_name, value)
+
         try:
             # Run the function's statements
             _, return_val = self.__run_statements(func_ast.get("statements"))
             # Return the evaluated return value if it exists
             return return_val.value() if isinstance(return_val, LazyValue) else return_val
         except Exception as e:
-            # Ensure exceptions are propagated properly
             raise e
         finally:
-            # Always pop the function's activation record to clean up
+            # Clean up the function scope
             self.env.pop_func()
 
-    # def __call_print(self, args):
-    #     output = ""
-    #     for arg in args:
-    #         result = self.__eval_expr(arg)  # result is a Value object
-    #         output = output + get_printable(result)
-    #     super().output(output)
-    #     return Interpreter.NIL_VALUE
     def __call_print(self, args):
         output = ""
         for arg in args:
@@ -288,7 +274,10 @@ class Interpreter(InterpreterBase):
                     super().error(ErrorType.NAME_ERROR, f"Variable {var_name} not found")
                 return var_value.value() if isinstance(var_value, LazyValue) else var_value
             if expr_ast.elem_type == InterpreterBase.FCALL_NODE:
-                return self.__call_func(expr_ast,captured_env)
+                # return self.__call_func(expr_ast,captured_env)
+                # Evaluate the function call and ensure the result is a concrete value
+                func_result = self.__call_func(expr_ast, captured_env)
+                return func_result.value() if isinstance(func_result, LazyValue) else func_result
             if expr_ast.elem_type in Interpreter.BIN_OPS:
                 return self.__eval_op(expr_ast,captured_env)
                 
@@ -299,7 +288,7 @@ class Interpreter(InterpreterBase):
 
             super().error(ErrorType.TYPE_ERROR, f"Unsupported expression type: {expr_ast.elem_type}")
         except Exception as e:
-            raise e  
+            raise e
 
     def __eval_op(self, arith_ast,captured_env=None):
         if captured_env is None:
@@ -345,6 +334,7 @@ class Interpreter(InterpreterBase):
             right_value_obj = self.__eval_expr(arith_ast.get("op2"),captured_env)
             if isinstance(right_value_obj, LazyValue):
                 right_value_obj = right_value_obj.value()
+            
             if right_value_obj.type() != Type.BOOL:
                 super().error(
                     ErrorType.TYPE_ERROR, "Right operand of || must be of type bool"
@@ -353,9 +343,11 @@ class Interpreter(InterpreterBase):
 
         # Handle other operators (no short-circuiting required)
         right_value_obj = self.__eval_expr(arith_ast.get("op2"),captured_env)
+        #THIS is where the error is being caused. right value obj stores nil than an actual value??
         if isinstance(right_value_obj, LazyValue):
             right_value_obj = right_value_obj.value()
-        
+        print(f"DEBUG: Left operand: {left_value_obj}, Right operand: {right_value_obj}")
+
         if not self.__compatible_types(
             arith_ast.elem_type, left_value_obj, right_value_obj
         ):
@@ -371,7 +363,7 @@ class Interpreter(InterpreterBase):
         f = self.op_to_lambda[left_value_obj.type()][arith_ast.elem_type]
         
         result=  f(left_value_obj, right_value_obj)
-        # print(f"DEBUG: Result of operation {arith_ast.elem_type}: {result.value()}")
+        print(f"DEBUG: Result of operation {arith_ast.elem_type}: {result.value()}")
         return result
     
     def __compatible_types(self, oper, obj1, obj2):
@@ -575,16 +567,76 @@ class Interpreter(InterpreterBase):
   
 def main():
     program = """
-func main() {
-  var r;
-  r = "10";
-  raise r;
+func foo() {
+  if (foob()) {
+    print("a");
+    raise "a";
+  }
+  else {
+    print("b");
+    raise "b";
+  }
+  print("c");
+  raise "c";
 }
+
+func foob() {
+  var i;
+  for (i = foot(); i < 1; i = i+1) {
+    print("d");
+    raise "d";
+  }
+}
+
+func foot() {
+  var i;
+  for (i = 0; fool(); i = i+1) {
+    print("e");
+    raise "e";
+  }
+}
+
+func fool() {
+  var i;
+  for (i = 0; i < 1; i = food()) {
+    var d;
+  }
+  print("f");
+  raise "f";
+}
+
+func food() {
+  var i;
+  for (i = 0; i < 3; i = i+1) {
+    print("inner");
+    bar(i);
+  }
+}
+
+func bar(i) {
+  if (i == 2) {
+    raise "x";
+  }
+}
+
+func main() {
+  try {
+    foo();
+  }
+  catch "x" {
+    print("x");
+  }
+}
+
 /*
-OUT
-ErrorType.FAULT_ERROR
-OUT
+*OUT*
+inner
+inner
+inner
+x
+*OUT*
 */
+
    """
 
 
