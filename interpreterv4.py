@@ -32,11 +32,36 @@ class Interpreter(InterpreterBase):
     # usese the provided Parser found in brewparse.py to parse the program
     # into an abstract syntax tree (ast)
     def run(self, program):
-        ast = parse_program(program)
-        self.__set_up_function_table(ast)
-        self.env = EnvironmentManager()
-        captured_env = self.env.copy()
-        self.__call_func_aux("main", [],captured_env)
+        """
+        Executes the program and catches specific errors without overriding existing functionality.
+        """
+        try:
+            # Parse the program and set up the environment
+            ast = parse_program(program)
+            self.__set_up_function_table(ast)
+            self.env = EnvironmentManager()
+            captured_env = self.env.copy()
+            self.__call_func_aux("main", [], captured_env)
+
+        except Exception as e:
+            # Extract the error message and type
+            message = e.args[0]
+            type_full = message.split('.')
+            
+            # Handle specific error types
+            if len(type_full) > 1:
+                type_error, type_msg = type_full[1].split(':')
+                if type_error in ["TYPE_ERROR", "NAME_ERROR", "FAULT_ERROR"]:
+                    super().error(ErrorType[type_error], type_msg[1:])
+            else:
+                super().error(ErrorType.FAULT_ERROR, f"Uncaught exception: {str(e)}")
+
+    # def run(self, program):
+    #     ast = parse_program(program)
+    #     self.__set_up_function_table(ast)
+    #     self.env = EnvironmentManager()
+    #     captured_env = self.env.copy()
+    #     self.__call_func_aux("main", [],captured_env)
 
     def __set_up_function_table(self, ast):
         self.func_name_to_ast = {}
@@ -85,7 +110,12 @@ class Interpreter(InterpreterBase):
         # # Catch nodes only appear in try blocks
         #     raise Exception("Catch nodes are not standalone statements")  
         elif statement.elem_type == InterpreterBase.FCALL_NODE:
-            self.__call_func(statement,captured_env)
+            if statement.elem_type == InterpreterBase.FCALL_NODE:
+                func_result = self.__call_func(statement, captured_env)
+                # Force evaluation for side effects (e.g., `print`) but ignore the return value
+                if isinstance(func_result, LazyValue):
+                    func_result.value()
+                return ExecStatus.CONTINUE, None
         elif statement.elem_type == "=":
             self.__assign(statement)
         elif statement.elem_type == InterpreterBase.VAR_DEF_NODE:
@@ -98,6 +128,7 @@ class Interpreter(InterpreterBase):
             status, return_val = self.__do_for(statement)
         elif statement.elem_type == InterpreterBase.RAISE_NODE:  # Handle raise
             self.__do_raise(statement)
+            return ExecStatus.CONTINUE, None
         else:
             raise Exception(f"Error Unrecognized statement type: {statement.elem_type}")
 
@@ -483,7 +514,7 @@ class Interpreter(InterpreterBase):
                 self.__run_statement(update_ast,captured_env)  # update counter variable
 
         return (ExecStatus.CONTINUE, Interpreter.NIL_VALUE)
-
+    
     def __do_return(self, return_ast):
         expr_ast = return_ast.get("expression")
         if expr_ast is None:
@@ -491,7 +522,7 @@ class Interpreter(InterpreterBase):
         # value_obj = copy.copy(self.__eval_expr(expr_ast))
         return (ExecStatus.RETURN, self.__eval_expr(expr_ast))
         # return should be handled lazily 
-        #return (ExecStatus.RETURN, LazyValue(lambda: self.__eval_expr(expr_ast)))
+        # return (ExecStatus.RETURN, LazyValue(lambda: self.__eval_expr(expr_ast, captured_env)))
     
     def __do_raise(self, raise_ast):
         #RAISE_NODE to invokes the __do_raise helper function
@@ -510,6 +541,7 @@ class Interpreter(InterpreterBase):
             )
 
         # Raise an exception with the string value
+        
         raise Exception(exception_value.value())
    
     def __do_try(self, try_ast):
@@ -543,28 +575,16 @@ class Interpreter(InterpreterBase):
   
 def main():
     program = """
-
-func bar(x) {
- print("bar: ", x);
- return x;
-}
-
 func main() {
- var a;
- a = -bar(1);
- print("---");
- print(a);
+  var r;
+  r = "10";
+  raise r;
 }
-
 /*
-*OUT*
----
-bar: 1
--1
-*OUT*
+OUT
+ErrorType.FAULT_ERROR
+OUT
 */
-
-
    """
 
 
